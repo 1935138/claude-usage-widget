@@ -59,8 +59,9 @@ The sliders icon opens a panel:
 
 Choices are stored in `settings.json` in the app's config directory and can be
 edited by hand. An out-of-range interval or an unrecognised clock position is
-corrected on load rather than rejected, so a bad edit never resets everything
-else.
+corrected on load rather than rejected, and a UTF-8 BOM — which editors on
+Windows add readily — is tolerated, so a bad edit never silently resets
+everything else.
 
 Drag the window by its title bar; close it with the ✕.
 

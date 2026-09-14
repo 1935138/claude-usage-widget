@@ -49,6 +49,17 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// Reads a settings file, tolerating a UTF-8 BOM.
+    ///
+    /// Editors on Windows routinely add one and `serde_json` rejects it, which
+    /// would silently drop the user back to defaults — a nasty outcome for a
+    /// file the documentation invites people to edit.
+    pub fn parse(text: &str) -> Option<Self> {
+        serde_json::from_str::<Self>(text.trim_start_matches('\u{feff}'))
+            .ok()
+            .map(Self::normalized)
+    }
+
     /// Brings a hand-edited or older file into the supported range.
     pub fn normalized(mut self) -> Self {
         if self.refresh_seconds != 0 {
@@ -86,6 +97,26 @@ mod tests {
         let s = Settings::default();
         assert!(s.session && s.weekly && s.provenance && s.pace);
         assert!(s.account.is_none());
+    }
+
+    #[test]
+    fn a_utf8_bom_does_not_wipe_the_file() {
+        let text = "\u{feff}{\"session\":false,\"clock\":\"left\"}";
+        let parsed = Settings::parse(text).expect("a BOM must not make the file unreadable");
+        assert!(!parsed.session);
+        assert_eq!(parsed.clock, "left");
+    }
+
+    #[test]
+    fn parse_normalizes_as_it_reads() {
+        let parsed = Settings::parse(r#"{"refreshSeconds":1,"clock":"diagonal"}"#).unwrap();
+        assert_eq!(parsed.refresh_seconds, MIN_REFRESH_SECONDS);
+        assert_eq!(parsed.clock, DEFAULT_CLOCK);
+    }
+
+    #[test]
+    fn parse_rejects_what_is_not_settings_at_all() {
+        assert!(Settings::parse("not json").is_none());
     }
 
     #[test]

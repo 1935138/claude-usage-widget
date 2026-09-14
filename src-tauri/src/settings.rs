@@ -24,9 +24,8 @@ pub fn load(app: &AppHandle) -> Settings {
     path(app)
         .ok()
         .and_then(|file| std::fs::read_to_string(file).ok())
-        .and_then(|text| serde_json::from_str::<Settings>(&text).ok())
+        .and_then(|text| Settings::parse(&text))
         .unwrap_or_default()
-        .normalized()
 }
 
 pub fn save(app: &AppHandle, settings: &Settings) -> Result<(), String> {
