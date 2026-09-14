@@ -4,7 +4,14 @@ A small always-on-top desktop widget for Windows that shows your Claude Code
 plan limits — the same meters `/usage` prints, without leaving them behind in a
 terminal.
 
-<!-- SCREENSHOT -->
+<p align="center">
+  <img src="docs/screenshot.png" alt="The widget showing a session meter and two weekly meters, each with a pace marker" width="400">
+</p>
+
+<p align="center">
+  <em>The red rule on each bar is the pace marker: where the clock has got to.
+  A bar to the left of it is comfortably within pace.</em>
+</p>
 
 ## Why
 
