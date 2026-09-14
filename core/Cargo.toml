@@ -1,0 +1,18 @@
+[package]
+name = "claude-usage-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+description = "Discovers and aggregates Claude Code session logs across Windows and WSL."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+walkdir = "2"
+# Blocking HTTP with rustls: the widget fetches one small JSON on a worker
+# thread, so an async stack would be all cost and no benefit.
+ureq = { version = "2", default-features = false, features = ["tls", "json"] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"

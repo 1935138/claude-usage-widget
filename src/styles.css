@@ -1,0 +1,304 @@
+/* Surfaces and ink are Anthropic's brand palette - the warm off-white, the
+   near-black and the clay greys are what make this read as Claude.
+
+   The bars are NOT the brand accents. Fed to scripts/validate_palette.js,
+   #d97757 / #6a9bcc / #788c5d fail hard: the orange and the green sit ΔE 0.7
+   apart under simulated protanopia, i.e. indistinguishable to a red-blind
+   viewer, and two of the three fall under the chroma floor. The bars therefore
+   use validated hues, led by the orange nearest the brand clay. Both sets pass
+   all-pairs against these surfaces in both modes.
+
+   --status-* are fixed in both modes and only ever mean status, never identity.
+   Don't hand-tune any of this; re-run the validator. */
+:root {
+  color-scheme: light;
+  --surface-1: #faf9f5;
+  --surface-2: #e8e6dc;
+  --text-primary: #141413;
+  --text-secondary: #5c5b57;
+  --text-muted: #6f6e68;
+  --cat-1: #eb6834;
+  --cat-2: #2a78d6;
+  --cat-3: #1baf7a;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --track: rgba(20, 20, 19, 0.10);
+  --edge: rgba(20, 20, 19, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-1: #141413;
+    --surface-2: #232220;
+    --text-primary: #faf9f5;
+    --text-secondary: #c2c0b6;
+    --text-muted: #a3a199;
+    --cat-1: #d95926;
+    --cat-2: #3987e5;
+    --cat-3: #199e70;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical: #d03b3b;
+    --track: rgba(250, 249, 245, 0.12);
+    --edge: rgba(250, 249, 245, 0.16);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: #141413;
+  --surface-2: #232220;
+  --text-primary: #faf9f5;
+  --text-secondary: #c2c0b6;
+  --text-muted: #a3a199;
+  --cat-1: #d95926;
+  --cat-2: #3987e5;
+  --cat-3: #199e70;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --track: rgba(250, 249, 245, 0.12);
+  --edge: rgba(250, 249, 245, 0.16);
+}
+
+* { box-sizing: border-box; }
+
+/* The Tauri window is transparent and undecorated; the card paints itself. */
+body {
+  margin: 0;
+  background: transparent;
+  font: 13px/1.45 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  color: var(--text-primary);
+  -webkit-user-select: none;
+  user-select: none;
+  overflow: hidden;
+}
+
+.card {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.bar-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.icon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon:hover { background: var(--surface-2); color: var(--text-primary); }
+.icon.on { background: var(--surface-2); color: var(--text-primary); }
+
+/* Settings rows */
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.opt-nested {
+  padding-left: 18px;
+  color: var(--text-secondary);
+}
+.opt input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--cat-1);
+  cursor: pointer;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Establishes a block formatting context so child margins cannot collapse out
+   of it. Without this `offsetHeight` omits them and the fitted window ends up
+   just short of the content, leaving a scrollbar. */
+#content {
+  display: flow-root;
+}
+
+/* Hero figure: the one number the widget leads with. */
+.section-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* A meter is one ratio against a plan limit. */
+.meter + .meter {
+  margin-top: 10px;
+}
+.meter-reset {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+/* Account picker: quota is per account and the installs differ. */
+.picker {
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+}
+.account-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.account-meta {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+/* One gap below the block, whether or not the meta line is present. */
+.account {
+  margin-bottom: 14px;
+}
+
+.badge {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.note.stale {
+  color: var(--text-secondary);
+}
+
+.section { margin-top: 16px; }
+.section-title { display: block; margin-bottom: 8px; }
+
+/* Each row carries its own label and value, so identity never rests on color
+   alone and no legend box is needed. */
+.row + .row { margin-top: 9px; }
+.row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.row-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.row-value {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+}
+/* Anchored to the baseline (left), rounded only at the data end. */
+.fill {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  min-width: 2px;
+}
+
+.clock {
+  padding: 6px 12px;
+  border-top: 1px solid var(--edge);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.clock[data-align="left"] { text-align: left; }
+.clock[data-align="center"] { text-align: center; }
+.clock[data-align="right"] { text-align: right; }
+
+.opt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--edge);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.opt-row select {
+  flex: none;
+  padding: 4px 6px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+}
+
+.note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
