@@ -8,6 +8,7 @@ interface Meter {
   percent: number;
   severity: string;
   resetsAt: string | null;
+  windowSeconds: number | null;
   isActive: boolean;
 }
 
@@ -36,6 +37,7 @@ interface Settings {
   session: boolean;
   weekly: boolean;
   provenance: boolean;
+  pace: boolean;
   account: string | null;
   refreshSeconds: number;
   clock: string;
@@ -52,7 +54,6 @@ const CLOCK_CHOICES: ReadonlyArray<[string, string]> = [
 /** Offered refresh intervals, in seconds; 0 polls only on demand. */
 const REFRESH_CHOICES: ReadonlyArray<[number, string]> = [
   [0, "Manual only"],
-  [30, "30 seconds"],
   [60, "1 minute"],
   [120, "2 minutes"],
   [300, "5 minutes"],
@@ -79,6 +80,40 @@ function resetLabel(iso: string | null): string {
   return sameDay
     ? `Resets ${time}`
     : `Resets ${at.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+}
+
+/**
+ * How far through its window a limit is, as a share of the whole.
+ *
+ * `null` when it cannot be worked out — an unrecognised window, or a reset
+ * instant already in the past, would otherwise put the marker somewhere
+ * meaningless. The window length comes from the backend, which derives it from
+ * the payload rather than assuming a plan.
+ */
+function elapsedShare(m: Meter): number | null {
+  if (!m.resetsAt || !m.windowSeconds) return null;
+  const resets = new Date(m.resetsAt).getTime();
+  if (Number.isNaN(resets)) return null;
+  const window = m.windowSeconds * 1000;
+  const elapsed = (window - (resets - Date.now())) / window;
+  return elapsed >= 0 && elapsed <= 1 ? elapsed : null;
+}
+
+/**
+ * The pace marker: where the clock has got to, against where the bar has got
+ * to. A bar ahead of its marker is burning the window faster than the window
+ * is passing, and will run out before the reset.
+ */
+function paceMarker(m: Meter, show: boolean): string {
+  if (!show) return "";
+  const share = elapsedShare(m);
+  if (share === null) return "";
+  const elapsed = Math.round(share * 100);
+  const verdict =
+    m.percent > elapsed + 1
+      ? `using faster than the clock (${Math.round(m.percent)}% used, ${elapsed}% elapsed)`
+      : `within pace (${Math.round(m.percent)}% used, ${elapsed}% elapsed)`;
+  return `<div class="pace" style="left:${share * 100}%" title="${esc(verdict)}"></div>`;
 }
 
 /** Status names the palette defines; anything else is treated as normal. */
@@ -113,7 +148,7 @@ function fillColour(m: Meter, hue: string): string {
  * out, and a raised state is spelled out in the badge, so colour is never the
  * only carrier.
  */
-function meter(m: Meter, previousReset: string, hue: string): string {
+function meter(m: Meter, previousReset: string, hue: string, pace: boolean): string {
   const pct = Math.max(0, Math.min(100, m.percent));
   const state = level(m);
   const severity = state !== "normal" ? state : "";
@@ -126,7 +161,10 @@ function meter(m: Meter, previousReset: string, hue: string): string {
         ${severity ? `<span class="badge">${esc(severity)}</span>` : ""}
         <span class="row-value">${Math.round(m.percent)}%</span>
       </div>
-      <div class="track"><div class="fill" style="width:${pct}%;background:${esc(fillColour(m, hue))}"></div></div>
+      <div class="track">
+        <div class="fill" style="width:${pct}%;background:${esc(fillColour(m, hue))}"></div>
+        ${paceMarker(m, pace)}
+      </div>
       ${showReset ? `<div class="meter-reset">${esc(showReset)}</div>` : ""}
     </div>`;
 }
@@ -170,7 +208,7 @@ function accountPicker(all: Limits[], current: Limits): string {
       : `<select id="account" class="picker" title="Quota is per account; these installs are signed in as different ones">${all
           .map(
             (l) =>
-              `<option value="${esc(l.account)}"${l.account === current.account ? " selected" : ""}>${esc(accountName(l))}</option>`,
+              `<option value="${esc(l.account)}"${l.account === current.account ? " selected" : ""}>${esc(accountName(l))}${l.live ? "" : " (cached)"}</option>`,
           )
           .join("")}</select>`;
 
@@ -232,7 +270,7 @@ function render(all: Limits[], s: Settings): string {
     .map((m) => {
       const hue = hueFor(m, scopedSeen);
       if (m.kind !== "session" && m.kind !== "weekly_all") scopedSeen += 1;
-      const html = meter(m, previousReset, hue);
+      const html = meter(m, previousReset, hue, s.pace);
       previousReset = resetLabel(m.resetsAt) || previousReset;
       return html;
     })
@@ -245,12 +283,13 @@ function render(all: Limits[], s: Settings): string {
 }
 
 /** The boolean switches, as distinct from the account and interval settings. */
-type SectionKey = "session" | "weekly" | "provenance";
+type SectionKey = "session" | "weekly" | "pace" | "provenance";
 
 /** Every switchable item, in the order the panel lists them. */
 const SECTIONS: ReadonlyArray<[SectionKey, string]> = [
   ["session", "Current session"],
   ["weekly", "Weekly limits"],
+  ["pace", "Pace marker"],
   ["provenance", "Cache & credits info"],
 ];
 
@@ -345,12 +384,22 @@ let settings: Settings = {
   session: true,
   weekly: true,
   provenance: true,
+  pace: true,
   account: null,
-  refreshSeconds: 120,
+  refreshSeconds: 300,
   clock: "right",
 };
 let showingSettings = false;
 let accounts: Limits[] = [];
+/**
+ * The last live answer per account.
+ *
+ * A failed fetch falls back to Claude Code's cache, which can be weeks behind,
+ * and letting that replace a live reading made the figures flip between two
+ * very different numbers. Once an account has answered live, it keeps showing
+ * live values.
+ */
+const lastLive = new Map<string, Limits>();
 
 async function draw(): Promise<void> {
   contentEl.innerHTML = showingSettings ? renderSettings(settings) : render(accounts, settings);
@@ -374,7 +423,11 @@ function scheduleRefresh(): void {
 
 async function load(): Promise<void> {
   try {
-    accounts = await invoke<Limits[]>("plan_limits");
+    const fetched = await invoke<Limits[]>("plan_limits");
+    for (const one of fetched) {
+      if (one.live) lastLive.set(one.account, one);
+    }
+    accounts = fetched.map((one) => (one.live ? one : (lastLive.get(one.account) ?? one)));
   } catch (err) {
     contentEl.innerHTML = `<p class="note">Could not read usage: ${esc(String(err))}</p>`;
     await fitWindow();

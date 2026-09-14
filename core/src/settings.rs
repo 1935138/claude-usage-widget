@@ -6,12 +6,14 @@
 use serde::{Deserialize, Serialize};
 
 /// Refresh intervals outside this range are clamped. The floor keeps a
-/// hand-edited settings file from hammering the API; the ceiling keeps an
-/// absent-minded one from looking broken.
-pub const MIN_REFRESH_SECONDS: u32 = 30;
+/// hand-edited settings file from hammering the API, which does rate-limit;
+/// the ceiling keeps an absent-minded one from looking broken.
+pub const MIN_REFRESH_SECONDS: u32 = 60;
 pub const MAX_REFRESH_SECONDS: u32 = 3600;
-/// Two minutes: one small request, against windows measured in hours.
-pub const DEFAULT_REFRESH_SECONDS: u32 = 120;
+/// Five minutes. The endpoint returns 429 under repeated polling, and the
+/// shortest window being tracked is five hours, so there is nothing to gain
+/// from asking more often.
+pub const DEFAULT_REFRESH_SECONDS: u32 = 300;
 
 /// Where the clock sits, and whether it is there at all.
 ///
@@ -35,6 +37,8 @@ pub struct Settings {
     pub weekly: bool,
     /// The line saying when the cache was written and which install wrote it.
     pub provenance: bool,
+    /// The marker showing how far through the window the clock has got.
+    pub pace: bool,
     /// Short id of the account whose meters to show. `None` follows whichever
     /// cache is freshest, which is also the fallback if the id disappears.
     pub account: Option<String>,
@@ -65,6 +69,7 @@ impl Default for Settings {
             session: true,
             weekly: true,
             provenance: true,
+            pace: true,
             account: None,
             refresh_seconds: DEFAULT_REFRESH_SECONDS,
             clock: DEFAULT_CLOCK.to_string(),
@@ -79,7 +84,7 @@ mod tests {
     #[test]
     fn everything_is_shown_by_default() {
         let s = Settings::default();
-        assert!(s.session && s.weekly && s.provenance);
+        assert!(s.session && s.weekly && s.provenance && s.pace);
         assert!(s.account.is_none());
     }
 
@@ -91,7 +96,7 @@ mod tests {
 
     #[test]
     fn a_hand_edited_interval_is_clamped_into_range() {
-        let fast = Settings { refresh_seconds: 1, ..Default::default() }.normalized();
+        let fast = Settings { refresh_seconds: 5, ..Default::default() }.normalized();
         assert_eq!(fast.refresh_seconds, MIN_REFRESH_SECONDS);
         let slow = Settings { refresh_seconds: 99_999, ..Default::default() }.normalized();
         assert_eq!(slow.refresh_seconds, MAX_REFRESH_SECONDS);
@@ -137,7 +142,7 @@ mod tests {
         // which would turn newly added items off for existing users.
         let s: Settings = serde_json::from_str(r#"{"session":false}"#).unwrap();
         assert!(!s.session);
-        assert!(s.weekly && s.provenance);
+        assert!(s.weekly && s.provenance && s.pace);
     }
 
     #[test]

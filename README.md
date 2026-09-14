@@ -25,6 +25,11 @@ and any per-model weekly limit, each with the time it resets.
   then red as they approach the cap.
 - **Fits its content.** The window sizes itself to what it is showing, clamped
   to the work area of whichever monitor it is on.
+- **Pace marker.** A red rule on each bar marks how far through the window the
+  clock has got. A bar ahead of its marker is burning the window faster than the
+  window is passing, and will run out before the reset. Window lengths are
+  derived from the payload rather than assumed, by matching each limit's reset
+  instant against the `five_hour` and `seven_day` entries beside it.
 - **Light and dark**, following the Windows theme.
 
 ## Install
@@ -41,7 +46,8 @@ The sliders icon opens a panel:
 | --- | --- |
 | Meters | current session, weekly limits |
 | Cache & credits info | on / off |
-| Refresh every | manual, 30s – 30m (default 2m) |
+| Pace marker | on / off |
+| Refresh every | manual, 1m – 1h (default 5m) |
 | Clock | hidden, bottom left / centre / right |
 
 Choices are stored in `settings.json` in the app's config directory and can be

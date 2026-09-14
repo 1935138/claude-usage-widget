@@ -36,6 +36,12 @@ pub struct Meter {
     /// `normal`, or a raised level the UI must call out in words as well as colour.
     pub severity: String,
     pub resets_at: Option<DateTime<Utc>>,
+    /// How long this limit's window runs, in seconds.
+    ///
+    /// Derived from the payload rather than assumed: each limit's reset instant
+    /// is matched against the `five_hour` and `seven_day` entries sitting beside
+    /// it, which is how the API itself names the two window lengths.
+    pub window_seconds: Option<u64>,
     /// Whether this is the window currently being consumed.
     pub is_active: bool,
 }
@@ -113,6 +119,12 @@ struct Cached {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Utilization {
+    /// The named windows. Their keys are the API's own statement of how long
+    /// each one runs, and both are present on every plan seen so far.
+    #[serde(default)]
+    five_hour: Option<NamedWindow>,
+    #[serde(default)]
+    seven_day: Option<NamedWindow>,
     #[serde(default)]
     extra_usage: Option<RawExtraUsage>,
     #[serde(default)]
@@ -121,6 +133,12 @@ pub struct Utilization {
     /// `five_hour`/`seven_day` keys, so this is the only field read.
     #[serde(default)]
     limits: Vec<RawLimit>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NamedWindow {
+    #[serde(default)]
+    resets_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -256,10 +274,13 @@ fn read(path: &Path, source: &str) -> Option<Limits> {
 /// Turns a utilisation payload - cached or freshly fetched, they share a shape -
 /// into display meters. `None` when it carries no limits at all.
 fn meters_from(utilization: Utilization) -> Option<Vec<Meter>> {
+    let five_hour = utilization.five_hour.and_then(|w| w.resets_at);
+    let seven_day = utilization.seven_day.and_then(|w| w.resets_at);
     let meters: Vec<Meter> = utilization
         .limits
         .into_iter()
         .map(|raw| Meter {
+            window_seconds: window_for(&raw, five_hour, seven_day),
             label: label_for(&raw.kind, scoped_model(&raw.scope)),
             kind: raw.kind,
             percent: raw.percent,
@@ -269,6 +290,40 @@ fn meters_from(utilization: Utilization) -> Option<Vec<Meter>> {
         })
         .collect();
     (!meters.is_empty()).then_some(meters)
+}
+
+const FIVE_HOURS: u64 = 5 * 60 * 60;
+const SEVEN_DAYS: u64 = 7 * 24 * 60 * 60;
+/// Scoped limits carry the same reset instant as the window they belong to, but
+/// computed a few microseconds apart.
+const SAME_WINDOW_TOLERANCE_SECONDS: i64 = 5;
+
+/// Which named window a limit belongs to, by its reset instant.
+///
+/// Falls back to the limit's kind when the named entries are absent, so a
+/// payload that drops them still produces a marker.
+fn window_for(
+    raw: &RawLimit,
+    five_hour: Option<DateTime<Utc>>,
+    seven_day: Option<DateTime<Utc>>,
+) -> Option<u64> {
+    let resets = raw.resets_at?;
+    let matches = |other: Option<DateTime<Utc>>| {
+        other.is_some_and(|o| {
+            (resets - o).num_seconds().abs() <= SAME_WINDOW_TOLERANCE_SECONDS
+        })
+    };
+    if matches(five_hour) {
+        Some(FIVE_HOURS)
+    } else if matches(seven_day) {
+        Some(SEVEN_DAYS)
+    } else if raw.kind == "session" {
+        Some(FIVE_HOURS)
+    } else if raw.kind.starts_with("weekly") {
+        Some(SEVEN_DAYS)
+    } else {
+        None
+    }
 }
 
 /// `default_claude_max_5x` reads as `Max 5x`, `claude_pro` as `Pro`; the
@@ -385,6 +440,52 @@ mod tests {
         assert_eq!(found.len(), 2);
         assert_eq!(found[0].account, "aaa");
         assert_eq!(found[0].source, "src500");
+    }
+
+    fn limit(kind: &str, resets: &str) -> RawLimit {
+        RawLimit {
+            kind: kind.to_string(),
+            percent: 0.0,
+            severity: None,
+            resets_at: Some(resets.parse().unwrap()),
+            scope: None,
+            is_active: false,
+        }
+    }
+
+    #[test]
+    fn a_window_is_recognised_by_its_reset_instant() {
+        let five: DateTime<Utc> = "2026-09-11T09:59:59.639712Z".parse().unwrap();
+        let seven: DateTime<Utc> = "2026-09-18T05:59:59.639734Z".parse().unwrap();
+        let session = limit("session", "2026-09-11T09:59:59.639712Z");
+        assert_eq!(window_for(&session, Some(five), Some(seven)), Some(FIVE_HOURS));
+        let weekly = limit("weekly_all", "2026-09-18T05:59:59.639734Z");
+        assert_eq!(window_for(&weekly, Some(five), Some(seven)), Some(SEVEN_DAYS));
+    }
+
+    #[test]
+    fn a_scoped_limit_matches_its_window_despite_the_microsecond_drift() {
+        // Real payloads compute these a few hundred microseconds apart.
+        let seven: DateTime<Utc> = "2026-09-18T05:59:59.639734Z".parse().unwrap();
+        let scoped = limit("weekly_scoped", "2026-09-18T05:59:59.639993Z");
+        assert_eq!(window_for(&scoped, None, Some(seven)), Some(SEVEN_DAYS));
+    }
+
+    #[test]
+    fn the_kind_stands_in_when_the_named_windows_are_missing() {
+        assert_eq!(
+            window_for(&limit("session", "2026-09-11T09:59:59Z"), None, None),
+            Some(FIVE_HOURS)
+        );
+        assert_eq!(
+            window_for(&limit("weekly_scoped", "2026-09-18T05:59:59Z"), None, None),
+            Some(SEVEN_DAYS)
+        );
+        // An unfamiliar kind gets no marker rather than a guessed one.
+        assert_eq!(
+            window_for(&limit("monthly_thing", "2026-09-18T05:59:59Z"), None, None),
+            None
+        );
     }
 
     #[test]

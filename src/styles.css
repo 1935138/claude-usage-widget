@@ -23,6 +23,7 @@
   --status-warning: #fab219;
   --status-serious: #ec835a;
   --status-critical: #d03b3b;
+  --pace: #c2352f;
   --track: rgba(20, 20, 19, 0.10);
   --edge: rgba(20, 20, 19, 0.14);
 }
@@ -41,6 +42,7 @@
     --status-warning: #fab219;
     --status-serious: #ec835a;
     --status-critical: #d03b3b;
+    --pace: #ef6b62;
     --track: rgba(250, 249, 245, 0.12);
     --edge: rgba(250, 249, 245, 0.16);
   }
@@ -59,6 +61,7 @@
   --status-warning: #fab219;
   --status-serious: #ec835a;
   --status-critical: #d03b3b;
+  --pace: #ef6b62;
   --track: rgba(250, 249, 245, 0.12);
   --edge: rgba(250, 249, 245, 0.16);
 }
@@ -250,10 +253,24 @@ body {
 }
 
 .track {
+  position: relative;
   height: 8px;
   border-radius: 4px;
   background: var(--track);
   overflow: hidden;
+}
+
+/* Where the clock has got to. A ruler mark, not a data mark: it is a thin
+   vertical rule against horizontal fills, so the form carries the difference
+   and the colour is not doing the work alone. */
+.pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--pace);
 }
 /* Anchored to the baseline (left), rounded only at the data end. */
 .fill {
