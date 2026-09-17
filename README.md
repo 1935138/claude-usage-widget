@@ -86,8 +86,10 @@ calls, authorised with the OAuth access token in `~/.claude/.credentials.json`.
 
 Claude Code caches its last answer in `~/.claude.json` under
 `cachedUsageUtilization`, and the widget falls back to that when a live read is
-not possible. The cache alone is not enough: Claude Code only rewrites it when
-`/usage` runs, so it can sit days out of date.
+not possible. The cache is only ever a fallback: an install with working
+credentials shows live figures even if `/usage` has never run on it. When the
+figures are cached, the widget says why rather than leaving you to guess: the
+sign-in expired, the API is rate-limiting, or it did not answer.
 
 This endpoint is not a documented or supported API. If it changes, the widget
 falls back to cached figures.
@@ -114,8 +116,9 @@ Discovery looks, in order:
    because the network share lists only *running* distros. `\\wsl.localhost` is
    tried first, `\\wsl$` as a fallback.
 
-Two installs signed into the same account are shown once, keyed by email, since
-the `account_uuid` can differ between installs of the same login.
+Two installs signed into the same account are shown once, keyed by email. Who an
+install is signed in as comes from `oauthAccount`, not from the cache block,
+which records whoever was signed in when it was last written.
 
 ## Building
 
