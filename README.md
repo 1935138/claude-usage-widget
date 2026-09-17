@@ -78,58 +78,19 @@ the file, and a UTF-8 BOM is tolerated. `cornerRadius` accepts any value up to
 The window is undecorated and transparent, so Windows draws no frame around it.
 The card paints its own outline, which is what **Corners** shapes.
 
-## How it works
+## Credentials
 
-### Where the numbers come from
+The widget reads the OAuth **access** token Claude Code keeps in
+`~/.claude/.credentials.json`, and nothing else from that file. **The refresh
+token is never read or written.** Claude Code rotates it, and a second process
+writing that file could log you out of Claude Code itself. The access token is
+used as-is; once it lapses the widget falls back to Claude Code's cached figures
+until Claude Code renews the token during normal use.
 
-The percentages are not in Claude Code's session logs. They come from
-`GET https://api.anthropic.com/api/oauth/usage`, the endpoint Claude Code itself
-calls, authorised with the OAuth access token in `~/.claude/.credentials.json`.
-
-Claude Code caches its last answer in `~/.claude.json` under
-`cachedUsageUtilization`, and the widget falls back to that when a live read is
-not possible. The cache is only ever a fallback: an install with working
-credentials shows live figures even if `/usage` has never run on it. When the
-figures are cached, the widget says why rather than leaving you to guess: the
-sign-in expired, the API is rate-limiting, or it did not answer.
-
-The request identifies itself as `claude-code/<version>`, which is what the CLI
-sends. The endpoint keeps two rate limits and picks between them on that header
-alone: with it, a few requests an hour are fine; without it, a handful earns
-hours of `429`s, answered with `Retry-After: 0` so there is no telling when they
-lift. The widget is reading the same endpoint, for the same account, with the
-token Claude Code itself put on disk, so it introduces itself as the client it
-stands in for. It refreshes every five minutes by default and never faster than
-every three.
-
-This endpoint is not a documented or supported API. If it changes, the widget
-falls back to cached figures.
-
-### Credentials
-
-**The refresh token is never read or written.** Claude Code rotates it, and a
-second process writing that file could log you out of Claude Code itself. The
-access token is used as-is; once it lapses the widget falls back to the cache
-until Claude Code renews it during normal use.
-
-Nothing leaves the machine except the one request above. Errors carry no detail
-from the credentials file, so no token material can reach a log or the UI.
-Signing in is delegated to `claude login` in its own console for the same
-reason.
-
-### Finding installs
-
-Discovery looks, in order:
-
-1. `CLAUDE_CONFIG_DIR`, if set (comma- or semicolon-separated).
-2. The native home directory, under both `.claude` and `.config/claude`.
-3. Every installed WSL distribution. Names come from the `Lxss` registry key,
-   because the network share lists only *running* distros. `\\wsl.localhost` is
-   tried first, `\\wsl$` as a fallback.
-
-Two installs signed into the same account are shown once, keyed by email. Who an
-install is signed in as comes from `oauthAccount`, not from the cache block,
-which records whoever was signed in when it was last written.
+Nothing leaves the machine except the one request that fetches the figures.
+Errors carry no detail from the credentials file, so no token material can reach
+a log or the UI. Signing in is delegated to `claude login` in its own console
+for the same reason.
 
 ## Building
 
