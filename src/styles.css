@@ -8,7 +8,7 @@
    use validated hues, led by the orange nearest the brand clay. Both sets pass
    all-pairs against these surfaces in both modes.
 
-   --status-* are fixed in both modes and only ever mean status, never identity.
+   Colour carries identity only: a bar keeps its hue however full it is.
    Don't hand-tune any of this; re-run the validator. */
 :root {
   color-scheme: light;
@@ -20,9 +20,6 @@
   --cat-1: #eb6834;
   --cat-2: #2a78d6;
   --cat-3: #1baf7a;
-  --status-warning: #fab219;
-  --status-serious: #ec835a;
-  --status-critical: #d03b3b;
   --pace: #c2352f;
   --track: rgba(20, 20, 19, 0.10);
   --edge: rgba(20, 20, 19, 0.14);
@@ -39,9 +36,6 @@
     --cat-1: #d95926;
     --cat-2: #3987e5;
     --cat-3: #199e70;
-    --status-warning: #fab219;
-    --status-serious: #ec835a;
-    --status-critical: #d03b3b;
     --pace: #ef6b62;
     --track: rgba(250, 249, 245, 0.12);
     --edge: rgba(250, 249, 245, 0.16);
@@ -58,9 +52,6 @@
   --cat-1: #d95926;
   --cat-2: #3987e5;
   --cat-3: #199e70;
-  --status-warning: #fab219;
-  --status-serious: #ec835a;
-  --status-critical: #d03b3b;
   --pace: #ef6b62;
   --track: rgba(250, 249, 245, 0.12);
   --edge: rgba(250, 249, 245, 0.16);
@@ -215,16 +206,6 @@ body {
   margin-bottom: 14px;
 }
 
-.badge {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
-}
 .section { margin-top: 16px; }
 .section-title { display: block; margin-bottom: 8px; }
 

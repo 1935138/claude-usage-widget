@@ -190,8 +190,9 @@ machine.
 
 Surfaces and ink come from Anthropic's brand palette. The bars do not: the brand
 accents fail a colour-blindness check against each other, so the bars use
-validated hues instead, led by the orange nearest the brand clay. Status colours
-are fixed in both themes and only ever mean status, never identity.
+validated hues instead, led by the orange nearest the brand clay. Colour carries
+identity only: a bar keeps its hue however full it is, and how close it is to
+its cap is left to the percentage and the pace marker.
 
 ## License
 

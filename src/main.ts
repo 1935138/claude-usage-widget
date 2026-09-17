@@ -6,6 +6,8 @@ interface Meter {
   kind: string;
   label: string;
   percent: number;
+  /** Raised level as the API reports it. Kept for `probe`; the card leaves the
+   * bar its own colour and lets the percentage say how full it is. */
   severity: string;
   resetsAt: string | null;
   windowSeconds: number | null;
@@ -132,53 +134,25 @@ function paceMarker(m: Meter, show: boolean): string {
   return `<div class="pace" style="left:${share * 100}%" title="${esc(verdict)}"></div>`;
 }
 
-/** Status names the palette defines; anything else is treated as normal. */
-const STATUSES = ["warning", "serious", "critical"];
-/** Above these shares of a limit, the bar stops being merely informative. */
-const WARNING_AT = 70;
-const CRITICAL_AT = 90;
-
 /**
- * How alarming a meter is: what the API says if it has raised anything, else
- * how close the bar has crept to the cap.
- */
-function level(m: Meter): string {
-  if (STATUSES.includes(m.severity)) return m.severity;
-  if (m.percent >= CRITICAL_AT) return "critical";
-  if (m.percent >= WARNING_AT) return "warning";
-  return "normal";
-}
-
-/**
- * Fill colour: normally the limit's own identity hue, but a status colour once
- * the bar runs hot. Status colours are reserved for exactly this, so they never
- * read as just another series.
- */
-function fillColour(m: Meter, hue: string): string {
-  const state = level(m);
-  return state === "normal" ? hue : `var(--status-${state})`;
-}
-
-/**
- * A meter: one ratio against a plan limit. The percentage is always written
- * out, and a raised state is spelled out in the badge, so colour is never the
- * only carrier.
+ * A meter: one ratio against a plan limit.
+ *
+ * Colour is identity only - each limit keeps its own hue however full it is.
+ * How close a bar has crept to its cap is carried by the percentage beside it
+ * and by the pace marker, not by turning the bar amber or red.
  */
 function meter(m: Meter, previousReset: string, hue: string, pace: boolean): string {
   const pct = Math.max(0, Math.min(100, m.percent));
-  const state = level(m);
-  const severity = state !== "normal" ? state : "";
   const reset = resetLabel(m.resetsAt);
   // The weekly meters share a reset instant; printing it twice is noise.
   const showReset = reset && reset !== previousReset ? reset : "";
   return `<div class="meter${m.isActive ? " is-active" : ""}">
       <div class="row-head">
         <span class="row-label">${esc(m.label)}</span>
-        ${severity ? `<span class="badge">${esc(severity)}</span>` : ""}
         <span class="row-value">${Math.round(m.percent)}%</span>
       </div>
       <div class="track">
-        <div class="fill" style="width:${pct}%;background:${esc(fillColour(m, hue))}"></div>
+        <div class="fill" style="width:${pct}%;background:${esc(hue)}"></div>
         ${paceMarker(m, pace)}
       </div>
       ${showReset ? `<div class="meter-reset">${esc(showReset)}</div>` : ""}
