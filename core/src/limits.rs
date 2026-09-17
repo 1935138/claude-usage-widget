@@ -192,7 +192,8 @@ pub fn load() -> Option<Limits> {
 ///
 /// Installs on one machine can be signed in as different accounts - quota is
 /// per account, so these are offered as alternatives rather than combined. Where
-/// two installs share an account only the fresher cache is kept.
+/// two installs share an account only the fresher cache is kept - see
+/// [`freshest_per_account`] for what counts as the same account.
 pub fn load_all() -> Vec<Limits> {
     from_roots(&discovery::discover())
 }
@@ -218,10 +219,23 @@ fn from_roots(roots: &[DataRoot]) -> Vec<Limits> {
             Some(limits)
         })
         .collect();
-    found.sort_by(|a, b| b.fetched_at.cmp(&a.fetched_at));
-    let mut seen = std::collections::HashSet::new();
-    found.retain(|limits| seen.insert(limits.account.clone()));
+    freshest_per_account(&mut found);
     found
+}
+
+/// Orders caches freshest first and drops every repeat of an account.
+///
+/// Identity is the signed-in email where there is one, since the `account_uuid`
+/// Claude Code records can differ between installs signed into the very same
+/// account. A cache carrying no email falls back to its `account_uuid`, so two
+/// anonymous installs are still kept apart.
+fn freshest_per_account(found: &mut Vec<Limits>) {
+    found.sort_by_key(|limits| std::cmp::Reverse(limits.fetched_at));
+    let mut seen = std::collections::HashSet::new();
+    found.retain(|limits| {
+        let key = limits.email.clone().unwrap_or_else(|| limits.account.clone());
+        seen.insert(key)
+    });
 }
 
 /// `~/.claude.json` sits beside the config directory, not inside it, so walk up
@@ -434,12 +448,35 @@ mod tests {
             extra_usage: None,
         };
         let mut found = vec![make("aaa", 100), make("bbb", 300), make("aaa", 500)];
-        found.sort_by(|a, b| b.fetched_at.cmp(&a.fetched_at));
-        let mut seen = std::collections::HashSet::new();
-        found.retain(|l| seen.insert(l.account.clone()));
+        freshest_per_account(&mut found);
         assert_eq!(found.len(), 2);
         assert_eq!(found[0].account, "aaa");
         assert_eq!(found[0].source, "src500");
+    }
+
+    #[test]
+    fn same_email_with_different_account_uuids_is_still_one_entry() {
+        // Claude Code can record a different `account_uuid` per install for the
+        // very same login, so email - not account_uuid - is what must dedupe.
+        let make = |account: &str, email: Option<&str>, ms: i64| Limits {
+            meters: vec![],
+            fetched_at: Utc.timestamp_millis_opt(ms).single().unwrap(),
+            source: format!("src{ms}"),
+            account: account.to_string(),
+            email: email.map(str::to_string),
+            organization: None,
+            plan: None,
+            live: ms == 500,
+            extra_usage: None,
+        };
+        let mut found = vec![
+            make("9fb0e902", Some("a@example.com"), 500),
+            make("c8abb3bc", Some("a@example.com"), 100),
+        ];
+        freshest_per_account(&mut found);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].account, "9fb0e902");
+        assert!(found[0].live);
     }
 
     fn limit(kind: &str, resets: &str) -> RawLimit {

@@ -41,6 +41,7 @@ interface Settings {
   account: string | null;
   refreshSeconds: number;
   clock: string;
+  cornerRadius: number;
 }
 
 /** Where the clock sits, matching `CLOCK_POSITIONS` in the settings crate. */
@@ -49,6 +50,18 @@ const CLOCK_CHOICES: ReadonlyArray<[string, string]> = [
   ["left", "Bottom left"],
   ["center", "Bottom centre"],
   ["right", "Bottom right"],
+];
+
+/**
+ * Offered corner radii, in CSS pixels. A hand-edited `settings.json` may name
+ * any value up to `MAX_CORNER_RADIUS`; one that is not on this list is added to
+ * the menu rather than silently snapped to a neighbour.
+ */
+const CORNER_CHOICES: ReadonlyArray<[number, string]> = [
+  [0, "Square"],
+  [6, "Slight"],
+  [12, "Rounded"],
+  [20, "Very rounded"],
 ];
 
 /** Offered refresh intervals, in seconds; 0 polls only on demand. */
@@ -257,9 +270,31 @@ function provenance(limits: Limits): string {
   return `<p class="note${stale ? " stale" : ""}" title="${esc(detail)}">${esc(prefix)} · ${esc(when)}${esc(hint)}</p>`;
 }
 
-function render(all: Limits[], s: Settings): string {
+/**
+ * Whether this machine has a Claude Code login: `needed` when none was found,
+ * `waiting` while a `claude login` this widget started is still running.
+ */
+type LoginState = "ok" | "needed" | "waiting";
+
+/** Centred prompt shown when this machine has never run `claude login`. */
+function loginRequired(state: LoginState): string {
+  const waiting = state === "waiting";
+  const note = waiting
+    ? "Complete the sign-in in the console window."
+    : "No Claude Code login found on this machine.";
+  return `<div class="login-panel">
+      <p class="note">${note}</p>
+      <button id="login" class="login-btn" type="button"${waiting ? " disabled" : ""}>${
+        waiting ? "Waiting for sign-in…" : "Login Required"
+      }</button>
+    </div>`;
+}
+
+function render(all: Limits[], s: Settings, login: LoginState): string {
   if (all.length === 0) {
-    return `<p class="note">No cached usage found. Run Claude Code once to populate it.</p>`;
+    return login === "ok"
+      ? `<p class="note">No cached usage found. Run Claude Code once to populate it.</p>`
+      : loginRequired(login);
   }
   const limits = chosen(all, s)!;
   const meters = limits.meters.filter((m) => wanted(m, s));
@@ -304,6 +339,18 @@ function renderSettings(s: Settings): string {
     ([value, label]) =>
       `<option value="${esc(value)}"${value === s.clock ? " selected" : ""}>${esc(label)}</option>`,
   ).join("");
+  const custom: [number, string] = [s.cornerRadius, `${s.cornerRadius}px`];
+  const radii: ReadonlyArray<[number, string]> = CORNER_CHOICES.some(
+    ([px]) => px === s.cornerRadius,
+  )
+    ? CORNER_CHOICES
+    : [...CORNER_CHOICES, custom].sort((a, b) => a[0] - b[0]);
+  const corners = radii
+    .map(
+      ([px, label]) =>
+        `<option value="${px}"${px === s.cornerRadius ? " selected" : ""}>${esc(label)}</option>`,
+    )
+    .join("");
   const options = REFRESH_CHOICES.map(
     ([seconds, label]) =>
       `<option value="${seconds}"${seconds === s.refreshSeconds ? " selected" : ""}>${esc(label)}</option>`,
@@ -319,12 +366,26 @@ function renderSettings(s: Settings): string {
         <span>Clock</span>
         <select id="clock-position">${clocks}</select>
       </div>
+      <div class="opt-row">
+        <span>Corners</span>
+        <select id="corner-radius" title="How rounded the card's corners are; the window has no frame of its own">${corners}</select>
+      </div>
     </section>`;
 }
 
 const bodyEl = document.getElementById("body")!;
 const contentEl = document.getElementById("content")!;
 const clockEl = document.getElementById("clock")!;
+
+/**
+ * Applies the card's corner radius.
+ *
+ * Set as a custom property rather than on the element, so the stylesheet keeps
+ * the whole of the card's shape in one place.
+ */
+function applyCornerRadius(): void {
+  document.documentElement.style.setProperty("--corner-radius", `${settings.cornerRadius}px`);
+}
 
 /** Applies the clock's position, or takes it off the card entirely. */
 function applyClockPosition(): void {
@@ -388,9 +449,11 @@ let settings: Settings = {
   account: null,
   refreshSeconds: 300,
   clock: "right",
+  cornerRadius: 12,
 };
 let showingSettings = false;
 let accounts: Limits[] = [];
+let login: LoginState = "ok";
 /**
  * The last live answer per account.
  *
@@ -402,7 +465,9 @@ let accounts: Limits[] = [];
 const lastLive = new Map<string, Limits>();
 
 async function draw(): Promise<void> {
-  contentEl.innerHTML = showingSettings ? renderSettings(settings) : render(accounts, settings);
+  contentEl.innerHTML = showingSettings
+    ? renderSettings(settings)
+    : render(accounts, settings, login);
   await fitWindow();
 }
 
@@ -428,12 +493,52 @@ async function load(): Promise<void> {
       if (one.live) lastLive.set(one.account, one);
     }
     accounts = fetched.map((one) => (one.live ? one : (lastLive.get(one.account) ?? one)));
+    // Only worth asking when there is nothing else to show. A sign-in already
+    // under way keeps its state until it lands, so the prompt does not flip
+    // back while the console window is still open.
+    const missing = accounts.length === 0 && (await invoke<boolean>("needs_login"));
+    login = missing ? (login === "waiting" ? "waiting" : "needed") : "ok";
   } catch (err) {
     contentEl.innerHTML = `<p class="note">Could not read usage: ${esc(String(err))}</p>`;
     await fitWindow();
     return;
   }
   await draw();
+}
+
+/** How long to keep watching for a sign-in to land, and how often to look. */
+const LOGIN_POLL_MS = 3000;
+const LOGIN_POLL_LIMIT = 60;
+
+/**
+ * Starts `claude login` and watches for it to finish.
+ *
+ * The sign-in runs in a console of its own, so nothing tells the widget when it
+ * lands - it is polled for a few minutes rather than left until the next
+ * refresh, which can be five minutes away.
+ */
+async function startLogin(): Promise<void> {
+  try {
+    await invoke("login");
+  } catch {
+    return;
+  }
+  login = "waiting";
+  await draw();
+  let left = LOGIN_POLL_LIMIT;
+  const poll = setInterval(() => {
+    if (login !== "waiting") {
+      clearInterval(poll);
+      return;
+    }
+    if (left-- <= 0) {
+      clearInterval(poll);
+      login = "needed";
+      void draw();
+      return;
+    }
+    void load();
+  }, LOGIN_POLL_MS);
 }
 
 contentEl.addEventListener("change", (event) => {
@@ -448,6 +553,12 @@ contentEl.addEventListener("change", (event) => {
     settings.refreshSeconds = Number(target.value);
     persist();
     scheduleRefresh();
+    return;
+  }
+  if (target instanceof HTMLSelectElement && target.id === "corner-radius") {
+    settings.cornerRadius = Number(target.value);
+    persist();
+    applyCornerRadius();
     return;
   }
   if (target instanceof HTMLSelectElement && target.id === "clock-position") {
@@ -473,6 +584,10 @@ document.getElementById("settings")!.addEventListener("click", () => {
   void draw();
 });
 document.getElementById("refresh")!.addEventListener("click", () => void load());
+contentEl.addEventListener("click", (event) => {
+  if (!(event.target instanceof HTMLElement) || event.target.id !== "login") return;
+  void startLogin();
+});
 document.getElementById("close")!.addEventListener("click", () => void getCurrentWindow().close());
 
 tick();
@@ -484,6 +599,7 @@ void (async () => {
   } catch {
     // Keep the defaults; everything stays visible.
   }
+  applyCornerRadius();
   applyClockPosition();
   scheduleRefresh();
   await load();
