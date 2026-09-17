@@ -144,16 +144,28 @@ mod tests {
 
     #[test]
     fn a_hand_edited_interval_is_clamped_into_range() {
-        let fast = Settings { refresh_seconds: 5, ..Default::default() }.normalized();
+        let fast = Settings {
+            refresh_seconds: 5,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(fast.refresh_seconds, MIN_REFRESH_SECONDS);
-        let slow = Settings { refresh_seconds: 99_999, ..Default::default() }.normalized();
+        let slow = Settings {
+            refresh_seconds: 99_999,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(slow.refresh_seconds, MAX_REFRESH_SECONDS);
     }
 
     #[test]
     fn manual_only_survives_normalization() {
         // Zero is meaningful - it is not "unset", it is "do not poll".
-        let manual = Settings { refresh_seconds: 0, ..Default::default() }.normalized();
+        let manual = Settings {
+            refresh_seconds: 0,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(manual.refresh_seconds, 0);
     }
 
@@ -169,7 +181,11 @@ mod tests {
     #[test]
     fn every_offered_clock_position_survives_normalization() {
         for position in CLOCK_POSITIONS {
-            let s = Settings { clock: position.to_string(), ..Default::default() }.normalized();
+            let s = Settings {
+                clock: position.to_string(),
+                ..Default::default()
+            }
+            .normalized();
             assert_eq!(s.clock, position);
         }
     }
@@ -184,11 +200,23 @@ mod tests {
     fn a_hand_edited_corner_radius_is_kept_unless_it_is_absurd() {
         // Anything inside the range is honoured, including values the panel
         // does not offer; square corners are a choice, not an unset field.
-        let odd = Settings { corner_radius: 7, ..Default::default() }.normalized();
+        let odd = Settings {
+            corner_radius: 7,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(odd.corner_radius, 7);
-        let square = Settings { corner_radius: 0, ..Default::default() }.normalized();
+        let square = Settings {
+            corner_radius: 0,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(square.corner_radius, 0);
-        let blob = Settings { corner_radius: 999, ..Default::default() }.normalized();
+        let blob = Settings {
+            corner_radius: 999,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(blob.corner_radius, MAX_CORNER_RADIUS);
     }
 

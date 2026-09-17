@@ -308,7 +308,10 @@ fn freshest_per_account(found: &mut Vec<Limits>) {
     found.sort_by_key(|limits| std::cmp::Reverse(limits.fetched_at));
     let mut seen = std::collections::HashSet::new();
     found.retain(|limits| {
-        let key = limits.email.clone().unwrap_or_else(|| limits.account.clone());
+        let key = limits
+            .email
+            .clone()
+            .unwrap_or_else(|| limits.account.clone());
         seen.insert(key)
     });
 }
@@ -421,9 +424,7 @@ fn window_for(
 ) -> Option<u64> {
     let resets = raw.resets_at?;
     let matches = |other: Option<DateTime<Utc>>| {
-        other.is_some_and(|o| {
-            (resets - o).num_seconds().abs() <= SAME_WINDOW_TOLERANCE_SECONDS
-        })
+        other.is_some_and(|o| (resets - o).num_seconds().abs() <= SAME_WINDOW_TOLERANCE_SECONDS)
     };
     if matches(five_hour) {
         Some(FIVE_HOURS)
@@ -495,7 +496,10 @@ mod tests {
     #[test]
     fn an_unknown_limit_kind_is_still_shown() {
         assert_eq!(label_for("monthly_thing", None), "monthly thing");
-        assert_eq!(label_for("monthly_thing", Some("Opus")), "monthly thing (Opus)");
+        assert_eq!(
+            label_for("monthly_thing", Some("Opus")),
+            "monthly thing (Opus)"
+        );
     }
 
     #[test]
@@ -570,7 +574,10 @@ mod tests {
 
     #[test]
     fn plan_tier_reads_as_a_plan_name() {
-        assert_eq!(plan_name("default_claude_max_5x").as_deref(), Some("Max 5x"));
+        assert_eq!(
+            plan_name("default_claude_max_5x").as_deref(),
+            Some("Max 5x")
+        );
         assert_eq!(plan_name("claude_pro").as_deref(), Some("Pro"));
         assert_eq!(plan_name("claude_team").as_deref(), Some("Team"));
         assert_eq!(plan_name("default_raven").as_deref(), Some("Raven"));
@@ -641,9 +648,15 @@ mod tests {
         let five: DateTime<Utc> = "2026-09-11T09:59:59.639712Z".parse().unwrap();
         let seven: DateTime<Utc> = "2026-09-18T05:59:59.639734Z".parse().unwrap();
         let session = limit("session", "2026-09-11T09:59:59.639712Z");
-        assert_eq!(window_for(&session, Some(five), Some(seven)), Some(FIVE_HOURS));
+        assert_eq!(
+            window_for(&session, Some(five), Some(seven)),
+            Some(FIVE_HOURS)
+        );
         let weekly = limit("weekly_all", "2026-09-18T05:59:59.639734Z");
-        assert_eq!(window_for(&weekly, Some(five), Some(seven)), Some(SEVEN_DAYS));
+        assert_eq!(
+            window_for(&weekly, Some(five), Some(seven)),
+            Some(SEVEN_DAYS)
+        );
     }
 
     #[test]

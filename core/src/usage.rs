@@ -207,8 +207,14 @@ fn build(roots: &[DataRoot]) -> Report {
                 report.this_month.add(&turn.usage);
             }
         }
-        by_model.entry(turn.model.clone()).or_default().add(&turn.usage);
-        by_source.entry(turn.source.clone()).or_default().add(&turn.usage);
+        by_model
+            .entry(turn.model.clone())
+            .or_default()
+            .add(&turn.usage);
+        by_source
+            .entry(turn.source.clone())
+            .or_default()
+            .add(&turn.usage);
     }
 
     report.current_session = newest_session_total(&turns);
@@ -393,7 +399,10 @@ mod tests {
             model: "claude-opus-5".into(),
             source: "Windows".into(),
             session: Some(session.into()),
-            usage: Usage { input: tokens, ..Default::default() },
+            usage: Usage {
+                input: tokens,
+                ..Default::default()
+            },
         }
     }
 
@@ -412,7 +421,10 @@ mod tests {
     #[test]
     fn current_session_ignores_turns_with_no_session_id() {
         let mut turns = vec![turn("only", 10, 42)];
-        turns.push(Turn { session: None, ..turn("ignored", 1, 999) });
+        turns.push(Turn {
+            session: None,
+            ..turn("ignored", 1, 999)
+        });
         assert_eq!(newest_session_total(&turns).total(), 42);
     }
 
@@ -435,8 +447,20 @@ mod tests {
     #[test]
     fn groups_are_sorted_by_total_descending() {
         let mut map = HashMap::new();
-        map.insert("small".to_string(), Usage { input: 1, ..Default::default() });
-        map.insert("big".to_string(), Usage { input: 99, ..Default::default() });
+        map.insert(
+            "small".to_string(),
+            Usage {
+                input: 1,
+                ..Default::default()
+            },
+        );
+        map.insert(
+            "big".to_string(),
+            Usage {
+                input: 99,
+                ..Default::default()
+            },
+        );
         let groups = into_groups(map);
         assert_eq!(groups[0].key, "big");
         assert_eq!(groups[1].key, "small");

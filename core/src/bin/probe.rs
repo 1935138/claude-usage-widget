@@ -36,10 +36,19 @@ fn main() {
         println!("  {:<24} {} session(s)", source.label, source.sessions);
     }
     println!("\nduplicate turns skipped: {}", report.duplicates_skipped);
-    println!("current session:  {:>12} tokens", report.current_session.total());
-    println!("current 5h block: {:>12} tokens", report.current_block.total());
+    println!(
+        "current session:  {:>12} tokens",
+        report.current_session.total()
+    );
+    println!(
+        "current 5h block: {:>12} tokens",
+        report.current_block.total()
+    );
     println!("today (local):    {:>12} tokens", report.today.total());
-    println!("last 7 days:      {:>12} tokens", report.last_7_days.total());
+    println!(
+        "last 7 days:      {:>12} tokens",
+        report.last_7_days.total()
+    );
     println!("this month:       {:>12} tokens", report.this_month.total());
     println!("all time:         {:>12} tokens", report.all_time.total());
 
@@ -49,24 +58,41 @@ fn main() {
     }
     for l in &all {
         {
-            println!("\nplan limits [{}] from {} ({}):", l.account, l.source,
+            println!(
+                "\nplan limits [{}] from {} ({}):",
+                l.account,
+                l.source,
                 match (&l.reason, l.live) {
                     (_, true) => "LIVE".to_string(),
                     (Some(why), _) => format!("cached: {why}"),
                     _ => "cached".to_string(),
-                });
-            println!("  {} | {} | {}",
+                }
+            );
+            println!(
+                "  {} | {} | {}",
                 l.email.clone().unwrap_or_else(|| "?".into()),
                 l.plan.clone().unwrap_or_else(|| "?".into()),
-                l.organization.clone().unwrap_or_else(|| "?".into()));
+                l.organization.clone().unwrap_or_else(|| "?".into())
+            );
             println!("  fetched {}", l.fetched_at);
             if let Some(x) = &l.extra_usage {
-                println!("  extra usage: enabled={} reason={:?} spend={:?}", x.enabled, x.disabled_reason, x.percent);
+                println!(
+                    "  extra usage: enabled={} reason={:?} spend={:?}",
+                    x.enabled, x.disabled_reason, x.percent
+                );
             }
             for m in &l.meters {
-                let resets = m.resets_at.map(|r| r.to_rfc3339()).unwrap_or_else(|| "-".into());
-                println!("  {:<28} {:>5.0}%  {}{}", m.label, m.percent,
-                    if m.is_active { "active  " } else { "        " }, resets);
+                let resets = m
+                    .resets_at
+                    .map(|r| r.to_rfc3339())
+                    .unwrap_or_else(|| "-".into());
+                println!(
+                    "  {:<28} {:>5.0}%  {}{}",
+                    m.label,
+                    m.percent,
+                    if m.is_active { "active  " } else { "        " },
+                    resets
+                );
             }
         }
     }

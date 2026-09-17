@@ -179,14 +179,24 @@ mod tests {
     #[test]
     fn max_size_never_drops_below_the_readable_minimum() {
         // A 200x150 work area cannot fit the widget plus margins.
-        let tiny = WorkArea { x: 0.0, y: 0.0, width: 200.0, height: 150.0 };
+        let tiny = WorkArea {
+            x: 0.0,
+            y: 0.0,
+            width: 200.0,
+            height: 150.0,
+        };
         assert_eq!(tiny.max_size(), (MIN_WIDTH, MIN_HEIGHT));
     }
 
     #[test]
     fn max_size_leaves_a_margin_on_a_roomy_display() {
         // The 2048x1152 primary at 125% scaling: 1638.4 x 883.2 logical.
-        let primary = WorkArea { x: 0.0, y: 0.0, width: 1638.4, height: 883.2 };
+        let primary = WorkArea {
+            x: 0.0,
+            y: 0.0,
+            width: 1638.4,
+            height: 883.2,
+        };
         let (w, h) = primary.max_size();
         assert_eq!(w, 1638.4 - 32.0);
         assert_eq!(h, 883.2 - 32.0);
