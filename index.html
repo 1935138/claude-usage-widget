@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <main class="card" id="card">
+    <main class="card loading" id="card">
       <header class="bar" data-tauri-drag-region>
         <span class="bar-title" data-tauri-drag-region>Claude Usage</span>
         <button id="settings" class="icon" type="button" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg></button>
@@ -16,13 +16,16 @@
       </header>
       <div id="body" class="body">
         <!-- Measured for the window height, so it must keep its natural size. -->
-        <div id="content"><p class="note">Reading logs&hellip;</p></div>
+        <div id="content">
+          <div class="splash"><img src="/avatar.png" alt="" width="48" height="48" /></div>
+        </div>
       </div>
       <!-- Outside #content so a re-render never disturbs it, and so the clock
            can tick every second without touching the report. The reading's own
            timestamp sits here too: both are times, and one line is enough. -->
       <div id="footer" class="footer" data-tauri-drag-region>
         <span id="provenance" class="footer-note"></span>
+        <span id="version" class="footer-version"></span>
         <span id="clock" class="footer-clock"></span>
       </div>
     </main>

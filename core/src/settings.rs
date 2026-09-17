@@ -25,6 +25,19 @@ pub const DEFAULT_REFRESH_SECONDS: u32 = 300;
 pub const CLOCK_POSITIONS: [&str; 4] = ["off", "left", "center", "right"];
 pub const DEFAULT_CLOCK: &str = "right";
 
+/// How every time on the card is written: `12` for `5:14 PM`, `24` for `17:14`.
+/// One setting for the clock, the reading's own timestamp and the reset lines,
+/// so the card never mixes the two notations. Kept as a string for the same
+/// reason as the clock position.
+pub const TIME_FORMATS: [&str; 2] = ["24", "12"];
+pub const DEFAULT_TIME_FORMAT: &str = "24";
+
+/// Which language the card is written in. `system` follows the display
+/// language the machine is set to, which is the default and what most people
+/// will want; the rest are there for when it guesses wrong.
+pub const LANGUAGES: [&str; 3] = ["system", "en", "ko"];
+pub const DEFAULT_LANGUAGE: &str = "system";
+
 /// Corner radius of the card, in CSS pixels. Any value up to the ceiling is
 /// honoured so a hand-edited file can pick one the panel does not offer; past
 /// it the curve starts eating the title bar's own corners, so it is clamped
@@ -57,6 +70,10 @@ pub struct Settings {
     pub refresh_seconds: u32,
     /// One of [`CLOCK_POSITIONS`].
     pub clock: String,
+    /// One of [`TIME_FORMATS`].
+    pub time_format: String,
+    /// One of [`LANGUAGES`].
+    pub language: String,
     /// How rounded the card's corners are, in CSS pixels; `0` is square. The
     /// window itself is undecorated and transparent, so this is the whole of
     /// the widget's outline - Windows draws no frame to round.
@@ -85,6 +102,12 @@ impl Settings {
         if !CLOCK_POSITIONS.contains(&self.clock.as_str()) {
             self.clock = DEFAULT_CLOCK.to_string();
         }
+        if !TIME_FORMATS.contains(&self.time_format.as_str()) {
+            self.time_format = DEFAULT_TIME_FORMAT.to_string();
+        }
+        if !LANGUAGES.contains(&self.language.as_str()) {
+            self.language = DEFAULT_LANGUAGE.to_string();
+        }
         self.corner_radius = self.corner_radius.min(MAX_CORNER_RADIUS);
         self
     }
@@ -100,6 +123,8 @@ impl Default for Settings {
             account: None,
             refresh_seconds: DEFAULT_REFRESH_SECONDS,
             clock: DEFAULT_CLOCK.to_string(),
+            time_format: DEFAULT_TIME_FORMAT.to_string(),
+            language: DEFAULT_LANGUAGE.to_string(),
             corner_radius: DEFAULT_CORNER_RADIUS,
         }
     }
@@ -144,16 +169,28 @@ mod tests {
 
     #[test]
     fn a_hand_edited_interval_is_clamped_into_range() {
-        let fast = Settings { refresh_seconds: 5, ..Default::default() }.normalized();
+        let fast = Settings {
+            refresh_seconds: 5,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(fast.refresh_seconds, MIN_REFRESH_SECONDS);
-        let slow = Settings { refresh_seconds: 99_999, ..Default::default() }.normalized();
+        let slow = Settings {
+            refresh_seconds: 99_999,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(slow.refresh_seconds, MAX_REFRESH_SECONDS);
     }
 
     #[test]
     fn manual_only_survives_normalization() {
         // Zero is meaningful - it is not "unset", it is "do not poll".
-        let manual = Settings { refresh_seconds: 0, ..Default::default() }.normalized();
+        let manual = Settings {
+            refresh_seconds: 0,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(manual.refresh_seconds, 0);
     }
 
@@ -169,8 +206,50 @@ mod tests {
     #[test]
     fn every_offered_clock_position_survives_normalization() {
         for position in CLOCK_POSITIONS {
-            let s = Settings { clock: position.to_string(), ..Default::default() }.normalized();
+            let s = Settings {
+                clock: position.to_string(),
+                ..Default::default()
+            }
+            .normalized();
             assert_eq!(s.clock, position);
+        }
+    }
+
+    #[test]
+    fn an_unknown_language_falls_back_to_following_the_machine() {
+        let s: Settings = serde_json::from_str(r#"{"language":"elvish"}"#).unwrap();
+        assert_eq!(s.normalized().language, DEFAULT_LANGUAGE);
+    }
+
+    #[test]
+    fn every_offered_language_survives_normalization() {
+        for language in LANGUAGES {
+            let s = Settings {
+                language: language.to_string(),
+                ..Default::default()
+            }
+            .normalized();
+            assert_eq!(s.language, language);
+        }
+    }
+
+    #[test]
+    fn an_unknown_time_format_falls_back_to_the_default() {
+        let s: Settings = serde_json::from_str(r#"{"timeFormat":"roman","weekly":false}"#).unwrap();
+        let s = s.normalized();
+        assert_eq!(s.time_format, DEFAULT_TIME_FORMAT);
+        assert!(!s.weekly);
+    }
+
+    #[test]
+    fn every_offered_time_format_survives_normalization() {
+        for format in TIME_FORMATS {
+            let s = Settings {
+                time_format: format.to_string(),
+                ..Default::default()
+            }
+            .normalized();
+            assert_eq!(s.time_format, format);
         }
     }
 
@@ -184,11 +263,23 @@ mod tests {
     fn a_hand_edited_corner_radius_is_kept_unless_it_is_absurd() {
         // Anything inside the range is honoured, including values the panel
         // does not offer; square corners are a choice, not an unset field.
-        let odd = Settings { corner_radius: 7, ..Default::default() }.normalized();
+        let odd = Settings {
+            corner_radius: 7,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(odd.corner_radius, 7);
-        let square = Settings { corner_radius: 0, ..Default::default() }.normalized();
+        let square = Settings {
+            corner_radius: 0,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(square.corner_radius, 0);
-        let blob = Settings { corner_radius: 999, ..Default::default() }.normalized();
+        let blob = Settings {
+            corner_radius: 999,
+            ..Default::default()
+        }
+        .normalized();
         assert_eq!(blob.corner_radius, MAX_CORNER_RADIUS);
     }
 

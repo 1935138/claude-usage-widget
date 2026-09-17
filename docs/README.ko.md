@@ -26,7 +26,8 @@
 ## 기능
 
 - **실시간 수치.** Claude Code가 쓰는 사용량 엔드포인트를 그대로 읽습니다.
-  마지막으로 `/usage`를 친 시점의 캐시가 아니라 지금 값입니다.
+  마지막으로 `/usage`를 친 시점의 캐시가 아니라 지금 값입니다. 하단에 마지막으로
+  갱신된 시각이 적히고, 캐시를 보여주는 중이면 그 사실도 함께 적힙니다.
 - **페이스 마커.** 막대 위의 빨간 선은 시간이 어디까지 흘렀는지를 나타냅니다.
   막대가 마커보다 앞서 있으면 초기화 전에 한도를 다 쓰게 됩니다.
 - **Windows와 WSL 모두.** WSL 배포판 안에 설치된 것까지 포함해, 이 컴퓨터의 모든
@@ -65,6 +66,8 @@ Claude Code가 설치되어 있고 로그인되어 있어야 합니다. 그 외�
 | 페이스 마커 | 켜기 / 끄기 |
 | 갱신 주기 | 수동, 3분 ~ 1시간 (기본 5분) |
 | 시계 | 표시 / 숨김 |
+| 시간 표기 | 24시간(기본) / 12시간 |
+| 언어 | 시스템 설정(기본) / English / 한국어 |
 | 모서리 | 각지게, 살짝, 둥글게(기본), 많이 둥글게 |
 
 설정은 앱 설정 디렉터리의 `settings.json`에 저장되며 직접 편집해도 됩니다. 범위를
@@ -74,134 +77,28 @@ Claude Code가 설치되어 있고 로그인되어 있어야 합니다. 그 외�
 창에는 장식이 없고 배경이 투명합니다. Windows가 그려주는 테두리가 없기 때문에
 카드가 스스로 외곽선을 그리며, **모서리** 설정이 그 모양을 결정합니다.
 
-## 동작 방식
+카드의 표기 언어는 영어와 한국어를 지원하며, 따로 고르지 않으면 컴퓨터의 표시
+언어를 따릅니다. 시각은 이 선택과 무관하게 컴퓨터의 지역 설정을 따르고, **시간
+표기** 설정은 12시간/24시간만 결정합니다.
 
-### 수치의 출처
+## 자격 증명
 
-퍼센트 값은 Claude Code의 세션 로그에서 계산할 수 있는 값이 아닙니다.
-Claude Code가 직접 호출하는 엔드포인트인
-`GET https://api.anthropic.com/api/oauth/usage`에서 가져오며,
-`~/.claude/.credentials.json`에 저장된 OAuth 액세스 토큰으로 인증합니다.
+위젯은 Claude Code가 `~/.claude/.credentials.json`에 저장해 둔 OAuth **액세스**
+토큰만 읽습니다. 그 파일에서 다른 것은 읽지 않습니다. **리프레시 토큰은 읽지도
+쓰지도 않습니다.** 이 토큰은 Claude Code가 회전시키는 값이라, 다른 프로세스가
+파일에 쓰면 Claude Code 쪽 로그인이 풀릴 수 있습니다. 액세스 토큰은 있는 그대로만
+쓰고, 만료되면 Claude Code가 평소 사용 중에 갱신할 때까지 캐시 값을 보여줍니다.
 
-Claude Code는 마지막 응답을 `~/.claude.json`의 `cachedUsageUtilization`에
-캐시해 두는데, 실시간 조회가 불가능할 때는 위젯도 이 값으로 대체합니다. 캐시는
-어디까지나 폴백입니다. 자격 증명만 살아 있으면 그 설치본에서 `/usage`를 한 번도
-돌린 적이 없어도 실시간 수치가 나옵니다. 캐시 값을 보여줄 때는 이유도 함께
-적습니다. 로그인 만료인지, 레이트 리밋인지, 응답이 없었는지 구분해 줍니다.
-
-요청에는 CLI가 보내는 것과 같은 `claude-code/<version>`을 이름표로 붙입니다. 이
-엔드포인트는 제한을 두 가지로 나눠 두고 오직 이 헤더로 어느 쪽을 적용할지
-정합니다. 붙이면 시간당 몇 번은 문제없지만, 붙이지 않으면 몇 번 만에 429가 뜨고
-`Retry-After: 0`과 함께 몇 시간씩 지속됩니다. 위젯은 같은 엔드포인트를 같은
-계정으로, Claude Code가 저장해 둔 토큰으로 읽는 것이라 그 클라이언트 이름을
-씁니다. 기본 갱신 주기는 5분이고 3분보다 짧아지지 않습니다.
-
-이 엔드포인트는 문서화된 공식 API가 아닙니다. 사양이 바뀌면 위젯은 조용히 캐시
-값으로 물러납니다.
-
-### 자격 증명
-
-**리프레시 토큰은 읽지도 쓰지도 않습니다.** 이 토큰은 Claude Code가 회전시키는
-값이라, 다른 프로세스가 파일에 쓰면 Claude Code 쪽 로그인이 풀릴 수 있습니다.
-액세스 토큰은 있는 그대로만 쓰고, 만료되면 Claude Code가 평소 사용 중에 갱신할
-때까지 캐시 값을 보여줍니다.
-
-위에 적은 요청 하나를 빼면 이 컴퓨터 밖으로 나가는 것은 없습니다. 오류 값에는
-자격 증명 파일의 내용이 담기지 않으므로 토큰이 로그나 화면에 새어 나갈 일이
+수치를 가져오는 요청 하나를 빼면 이 컴퓨터 밖으로 나가는 것은 없습니다. 오류
+값에는 자격 증명 파일의 내용이 담기지 않으므로 토큰이 로그나 화면에 새어 나갈 일이
 없습니다. 같은 이유로 로그인도 위젯이 직접 처리하지 않고 별도 콘솔의
 `claude login`에 맡깁니다.
 
-### 설치본 탐색
+## 개발
 
-다음 순서로 찾습니다.
-
-1. `CLAUDE_CONFIG_DIR` (설정되어 있으면. 쉼표나 세미콜론으로 여러 개 지정 가능)
-2. 사용자 홈 디렉터리의 `.claude`와 `.config/claude`
-3. 설치된 모든 WSL 배포판. 네트워크 공유는 *실행 중인* 배포판만 보여주기 때문에
-   이름은 `Lxss` 레지스트리 키에서 읽습니다. `\\wsl.localhost`를 먼저 시도하고
-   안 되면 `\\wsl$`로 넘어갑니다.
-
-같은 계정으로 로그인된 설치본이 여러 개여도 목록에는 하나만 나옵니다. 같은
-로그인이라도 설치본마다 `account_uuid`가 다를 수 있어서 이메일을 기준으로
-묶습니다. 계정 정보는 캐시 블록이 아니라 `oauthAccount`에서 읽습니다. 캐시에 적힌
-계정은 그 캐시를 마지막으로 쓴 시점의 로그인이라 지금과 다를 수 있습니다.
-
-## 빌드
-
-MSVC 빌드 도구, WebView2, Node, Rust(`winget install Rustlang.Rustup`)가
-필요합니다.
-
-```sh
-npm install
-npm run tauri dev                # 라이브 리로드 창
-npm run tauri build              # 설치 파일
-npm run tauri build --no-bundle  # 실행 파일만
-```
-
-알아두면 좋은 세 가지입니다.
-
-- 프로젝트는 Windows 파일 시스템에 두세요. Windows `node.exe`는 `/home/...`
-  경로를 해석하지 못하고, `\\wsl.localhost` 너머로 cargo를 돌리면 못 쓸 만큼
-  느립니다.
-- `cargo build`를 직접 쓰지 말고 Tauri CLI로 빌드하세요. `tauri-build`는 CLI가
-  아니라고 알려주지 않으면 `cfg(dev)`를 켜기 때문에, 그냥
-  `cargo build --release`로 만든 바이너리는 여전히 dev 서버를 바라봅니다.
-- Windows 셸에서 실행하세요. WSL 셸에서는 Windows Tauri CLI가 리눅스 `PATH`를
-  물려받아 `cargo metadata ... program not found`로 실패합니다.
-- 빌드 전에 위젯을 종료하세요. Windows는 실행 중인 `.exe`를 잠그기 때문에 링크
-  단계에서 `failed to remove file ... Access is denied. (os error 5)`로 실패합니다.
-
-### 리눅스에서 크로스 컴파일
-
-```sh
-rustup target add x86_64-pc-windows-msvc i686-pc-windows-msvc
-cargo install --locked cargo-xwin
-sudo apt install llvm clang lld     # llvm-rc, clang-cl, lld-link
-
-export XWIN_ACCEPT_LICENSE=1
-export XWIN_ARCH=x86_64,x86         # x86 import lib이 없으면 32비트 링크 실패
-npm install
-npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
-```
-
-`npm run tauri dev`는 창을 띄우는 명령이라 Windows에서만 동작합니다. 크로스
-빌드에는 `CARGO_TARGET_DIR`로 별도 디렉터리를 주세요. 그러지 않으면 호스트
-빌드와 `target/debug`를 두고 다툽니다.
-
-### 점검
-
-```sh
-cargo test -p claude-usage-core
-cargo run -p claude-usage-core --bin probe           # 위젯이 보여줄 내용
-cargo run -p claude-usage-core --bin probe -- --json # UI가 받는 그대로
-npm run build                                        # 타입, 번들, CSS 검사
-```
-
-`npm run build`는 마지막에 CSS가 끝까지 압축됐는지 확인합니다. 규칙 하나가
-깨져 있으면 esbuild가 그 뒤를 원문 그대로 흘려보내는데, 빌드는 성공으로 끝나면서
-이후 규칙이 전부 사라집니다.
-
-## 구조
-
-```
-core/        순수 Rust: 설치본 탐색, 사용량 API 클라이언트, 설정.
-             Tauri에 의존하지 않아 어디서든 빌드·테스트됩니다.
-core/src/bin/probe.rs   창 없이 위젯이 보여줄 내용을 출력합니다.
-src-tauri/   Tauri 2 셸: 커맨드와 창 크기 조절.
-src/         UI (TypeScript + Vite, 프레임워크 없음).
-```
-
-`core`를 Tauri에서 떼어 둔 것은 의도한 것입니다. Tauri는 리눅스에서 GTK와 dbus를
-끌어오는데, 그러면 로직 테스트를 제대로 갖춰진 Windows 환경에서만 돌릴 수 있게
-됩니다.
-
-## 색상
-
-배경과 글자색은 Anthropic 브랜드 팔레트를 씁니다. 막대는 아니었습니다. 브랜드
-강조색끼리는 색각 이상 검사를 통과하지 못해서, 브랜드 클레이에 가장 가까운
-주황을 앞세운 검증된 색상을 대신 씁니다. 색은 항목 구분에만 씁니다. 막대가
-얼마나 찼든 색은 그대로이고, 한도에 얼마나 가까운지는 퍼센트 숫자와 페이스
-마커가 알려줍니다.
+빌드 방법과 점검 명령은 [CONTRIBUTING.md](../CONTRIBUTING.md), 코드 구조와 그렇게
+나눈 이유는 [docs/architecture.md](architecture.md)에 있습니다. 개발 문서는 영어로만
+관리합니다.
 
 ## 라이선스
 

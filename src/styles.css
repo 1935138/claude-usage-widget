@@ -263,10 +263,15 @@ body {
 /* Both halves are times, so they share one line: where the figures came from
    on the left, the clock on the right. */
 .footer {
+  position: relative;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+  /* One line plus the padding - `box-sizing` is border-box here - so the row
+     keeps its height when all it carries is the version, which is taken out of
+     the flow to centre it. */
+  min-height: calc(1.45em + 12px);
   padding: 6px 12px;
   border-top: 1px solid var(--edge);
   font-size: 11px;
@@ -282,6 +287,16 @@ body {
 }
 .footer-note.stale {
   color: var(--text-secondary);
+}
+/* Centred on the card rather than in what the other two leave over, and out of
+   the flow so it can never push them about. `top` matches the row's padding:
+   without it the static position puts the text below the row, where the card
+   clips it. */
+.footer-version {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 .footer-clock {
   flex: none;
@@ -315,6 +330,29 @@ body {
   margin: 0;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+/* Until the first reading lands there is nothing worth framing, so the card
+   gets out of the way. The window is transparent, so what is left on screen is
+   the icon alone. */
+.card.loading {
+  background: transparent;
+  border-color: transparent;
+}
+.card.loading .bar,
+.card.loading .footer {
+  display: none;
+}
+
+.splash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 0;
+}
+.splash img {
+  border-radius: 6px;
+  opacity: 0.85;
 }
 
 /* Shown centred in place of the meters when this machine has no login yet. */

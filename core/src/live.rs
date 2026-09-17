@@ -10,11 +10,16 @@
 //! token is read and used as-is; once it expires the caller falls back to the
 //! cache until Claude Code refreshes it in the course of normal use.
 
+mod backoff;
+mod credentials;
+
 use crate::limits::Utilization;
-use serde::Deserialize;
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use backoff::{backing_off, begin_backoff, clear_backoff, retry_after_ms};
+use credentials::access_token;
+use std::path::Path;
 use std::time::Duration;
+
+pub use credentials::credentials_path;
 
 const ENDPOINT: &str = "https://api.anthropic.com/api/oauth/usage?at_wall=1&skip_spend=1";
 /// The widget refreshes on a timer; a hung request must not stack up.
@@ -29,31 +34,6 @@ const TIMEOUT: Duration = Duration::from_secs(8);
 /// for the same account, with the token Claude Code itself put on disk. The
 /// version trails the CLI's own; only the prefix decides the bucket.
 const USER_AGENT: &str = "claude-code/2.1.80";
-/// Stop using a token shortly before it lapses, rather than racing the clock.
-const EXPIRY_MARGIN_MS: i64 = 60_000;
-/// The endpoint rate-limits. After a 429, wait this long, then twice that, and
-/// so on, rather than walking straight back into it on the next tick.
-const BACKOFF_START_MS: i64 = 5 * 60 * 1000;
-const BACKOFF_MAX_MS: i64 = 60 * 60 * 1000;
-
-/// When the next attempt is allowed, and how long the current backoff is.
-/// Process-wide: the limit applies to the account, not to a call site.
-static BACKOFF: Mutex<Option<(i64, i64)>> = Mutex::new(None);
-
-#[derive(Debug, Deserialize)]
-struct CredentialsFile {
-    #[serde(rename = "claudeAiOauth")]
-    oauth: Option<Oauth>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Oauth {
-    access_token: String,
-    #[serde(default)]
-    expires_at: i64,
-}
-
 /// Why a live read was not possible. Carries no token material.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Unavailable {
@@ -79,12 +59,6 @@ impl Unavailable {
             Self::RateLimited => "rateLimited",
         }
     }
-}
-
-/// `.credentials.json` sits inside the config directory, next to `projects`.
-pub fn credentials_path(projects_dir: &Path) -> Option<PathBuf> {
-    let candidate = projects_dir.parent()?.join(".credentials.json");
-    candidate.is_file().then_some(candidate)
 }
 
 /// Current utilisation for the account that owns `credentials`.
@@ -114,146 +88,14 @@ pub fn fetch(credentials: &Path, now_ms: i64) -> Result<Utilization, Unavailable
     Ok(parsed)
 }
 
-/// Whether a previous 429 is still being waited out.
-fn backing_off(now_ms: i64) -> bool {
-    BACKOFF
-        .lock()
-        .ok()
-        .and_then(|state| *state)
-        .is_some_and(|(until, _)| now_ms < until)
-}
-
-/// How long the endpoint itself asked us to wait, if it said.
-///
-/// `Retry-After` is in seconds here. A value that is missing, unparseable or
-/// absurd is ignored rather than trusted.
-fn retry_after_ms(response: &ureq::Response) -> Option<i64> {
-    let seconds = response.header("retry-after")?.trim().parse::<i64>().ok()?;
-    (seconds > 0).then(|| (seconds * 1000).min(BACKOFF_MAX_MS))
-}
-
-/// Waits as long as the endpoint asked, or, failing an answer, twice as long as
-/// last time up to the ceiling.
-fn begin_backoff(now_ms: i64, asked_ms: Option<i64>) {
-    if let Ok(mut state) = BACKOFF.lock() {
-        let next = asked_ms.unwrap_or_else(|| match *state {
-            Some((_, previous)) => (previous * 2).min(BACKOFF_MAX_MS),
-            None => BACKOFF_START_MS,
-        });
-        *state = Some((now_ms + next, next));
-    }
-}
-
-fn clear_backoff() {
-    if let Ok(mut state) = BACKOFF.lock() {
-        *state = None;
-    }
-}
-
-/// Reads the access token, refusing one that is spent.
-///
-/// Errors deliberately carry no detail from the file: nothing here should be
-/// able to reach a log or the UI.
-fn access_token(path: &Path, now_ms: i64) -> Result<String, Unavailable> {
-    let text = std::fs::read_to_string(path).map_err(|_| Unavailable::NoCredentials)?;
-    let oauth = serde_json::from_str::<CredentialsFile>(&text)
-        .map_err(|_| Unavailable::NoCredentials)?
-        .oauth
-        .ok_or(Unavailable::NoCredentials)?;
-    if oauth.expires_at > 0 && oauth.expires_at - EXPIRY_MARGIN_MS <= now_ms {
-        return Err(Unavailable::Expired);
-    }
-    Ok(oauth.access_token)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn write(name: &str, body: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join("cuw-live-tests");
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join(name);
-        std::fs::write(&path, body).unwrap();
-        path
-    }
-
-    #[test]
-    fn reads_a_live_token() {
-        let path = write(
-            "ok.json",
-            r#"{"claudeAiOauth":{"accessToken":"tok","expiresAt":2000000}}"#,
-        );
-        assert_eq!(access_token(&path, 1_000_000).unwrap(), "tok");
-    }
-
-    #[test]
-    fn refuses_a_spent_token() {
-        let path = write(
-            "old.json",
-            r#"{"claudeAiOauth":{"accessToken":"tok","expiresAt":1000000}}"#,
-        );
-        assert_eq!(access_token(&path, 1_000_000), Err(Unavailable::Expired));
-    }
-
-    #[test]
-    fn refuses_a_token_inside_the_expiry_margin() {
-        // Valid for another 30s: not long enough to be worth starting a request.
-        let path = write(
-            "edge.json",
-            r#"{"claudeAiOauth":{"accessToken":"tok","expiresAt":1030000}}"#,
-        );
-        assert_eq!(access_token(&path, 1_000_000), Err(Unavailable::Expired));
-    }
-
-    #[test]
-    fn a_file_without_oauth_is_not_credentials() {
-        let path = write("empty.json", r#"{"other":true}"#);
-        assert_eq!(
-            access_token(&path, 1_000_000),
-            Err(Unavailable::NoCredentials)
-        );
-    }
-
-    #[test]
-    fn backoff_doubles_then_stops_at_the_ceiling() {
-        clear_backoff();
-        begin_backoff(0, None);
-        assert!(backing_off(BACKOFF_START_MS - 1));
-        // The wait elapses.
-        assert!(!backing_off(BACKOFF_START_MS + 1));
-
-        // A second 429 waits twice as long.
-        begin_backoff(0, None);
-        assert!(backing_off(BACKOFF_START_MS * 2 - 1));
-
-        for _ in 0..10 {
-            begin_backoff(0, None);
-        }
-        assert!(!backing_off(BACKOFF_MAX_MS + 1));
-        clear_backoff();
-    }
-
-    #[test]
-    fn a_success_clears_the_backoff() {
-        begin_backoff(0, None);
-        clear_backoff();
-        assert!(!backing_off(0));
-    }
 
     #[test]
     fn the_user_agent_names_the_client_the_endpoint_expects() {
         // Not cosmetic: without this prefix the endpoint answers 429 for hours.
         assert!(USER_AGENT.starts_with("claude-code/"));
-    }
-
-    #[test]
-    fn the_endpoints_own_wait_wins_over_the_doubling() {
-        clear_backoff();
-        begin_backoff(0, Some(30_000));
-        assert!(backing_off(29_999));
-        assert!(!backing_off(30_001));
-        clear_backoff();
     }
 
     #[test]
@@ -267,13 +109,5 @@ mod tests {
             assert!(!why.code().is_empty());
         }
         assert_eq!(Unavailable::Expired.code(), "expired");
-    }
-
-    #[test]
-    fn a_missing_file_is_not_credentials() {
-        assert_eq!(
-            access_token(Path::new("/nonexistent-creds-xyz.json"), 0),
-            Err(Unavailable::NoCredentials)
-        );
     }
 }

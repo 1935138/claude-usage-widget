@@ -13,11 +13,20 @@
 //!   be signed in as different accounts, so the caches are never merged - the
 //!   most recently fetched one wins outright.
 
+mod labels;
+mod payload;
+mod windows;
+
 use crate::discovery::{self, DataRoot};
 use crate::live;
 use chrono::{DateTime, TimeZone, Utc};
-use serde::{Deserialize, Serialize};
+use labels::{label_for, plan_name, scoped_model};
+use payload::{CacheFile, Cached};
+use serde::Serialize;
 use std::path::{Path, PathBuf};
+use windows::window_for;
+
+pub use payload::Utilization;
 
 /// How far up from a `projects` directory the sibling `~/.claude.json` can sit.
 /// `<home>/.claude/projects` needs three; `<home>/.config/claude/projects` four.
@@ -44,6 +53,9 @@ pub struct Meter {
     pub window_seconds: Option<u64>,
     /// Whether this is the window currently being consumed.
     pub is_active: bool,
+    /// Model a scoped limit belongs to, e.g. `Fable`. The card composes its own
+    /// label from this and the kind, so that it can do so in its own language.
+    pub scope_model: Option<String>,
 }
 
 /// Whether pay-as-you-go credits can absorb overflow once a limit is hit.
@@ -134,112 +146,6 @@ impl Identity {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CacheFile {
-    #[serde(default)]
-    cached_usage_utilization: Option<Cached>,
-    /// Sits beside the cache rather than inside it, and carries the plan tier.
-    #[serde(default)]
-    oauth_account: Option<OauthAccount>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct OauthAccount {
-    /// Who the install is signed in as now, as opposed to whoever was signed in
-    /// when the cache block was last written.
-    #[serde(default)]
-    account_uuid: Option<String>,
-    #[serde(default)]
-    email_address: Option<String>,
-    #[serde(default)]
-    organization_name: Option<String>,
-    #[serde(default)]
-    user_rate_limit_tier: Option<String>,
-    /// Falls back for accounts that record no user tier: `claude_pro` reads as
-    /// `Pro`, which is more use than the org's internal rate-limit tier name.
-    #[serde(default)]
-    organization_type: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Cached {
-    #[serde(default)]
-    fetched_at_ms: i64,
-    #[serde(default)]
-    account_uuid: String,
-    #[serde(default)]
-    utilization: Utilization,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct Utilization {
-    /// The named windows. Their keys are the API's own statement of how long
-    /// each one runs, and both are present on every plan seen so far.
-    #[serde(default)]
-    five_hour: Option<NamedWindow>,
-    #[serde(default)]
-    seven_day: Option<NamedWindow>,
-    #[serde(default)]
-    extra_usage: Option<RawExtraUsage>,
-    #[serde(default)]
-    spend: Option<RawSpend>,
-    /// Self-describing and already in display order, unlike the sibling
-    /// `five_hour`/`seven_day` keys, so this is the only field read.
-    #[serde(default)]
-    limits: Vec<RawLimit>,
-}
-
-#[derive(Debug, Deserialize)]
-struct NamedWindow {
-    #[serde(default)]
-    resets_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawExtraUsage {
-    #[serde(default)]
-    is_enabled: bool,
-    #[serde(default)]
-    disabled_reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawSpend {
-    #[serde(default)]
-    percent: Option<f64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawLimit {
-    #[serde(default)]
-    kind: String,
-    #[serde(default)]
-    percent: f64,
-    #[serde(default)]
-    severity: Option<String>,
-    #[serde(default)]
-    resets_at: Option<DateTime<Utc>>,
-    #[serde(default)]
-    scope: Option<Scope>,
-    #[serde(default)]
-    is_active: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct Scope {
-    #[serde(default)]
-    model: Option<ScopeModel>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ScopeModel {
-    #[serde(default)]
-    display_name: Option<String>,
-}
-
 /// The freshest plan-limit cache across every install on this machine.
 pub fn load() -> Option<Limits> {
     load_all().into_iter().next()
@@ -308,7 +214,10 @@ fn freshest_per_account(found: &mut Vec<Limits>) {
     found.sort_by_key(|limits| std::cmp::Reverse(limits.fetched_at));
     let mut seen = std::collections::HashSet::new();
     found.retain(|limits| {
-        let key = limits.email.clone().unwrap_or_else(|| limits.account.clone());
+        let key = limits
+            .email
+            .clone()
+            .unwrap_or_else(|| limits.account.clone());
         seen.insert(key)
     });
 }
@@ -394,6 +303,7 @@ fn meters_from(utilization: Utilization) -> Option<Vec<Meter>> {
         .map(|raw| Meter {
             window_seconds: window_for(&raw, five_hour, seven_day),
             label: label_for(&raw.kind, scoped_model(&raw.scope)),
+            scope_model: scoped_model(&raw.scope).map(str::to_string),
             kind: raw.kind,
             percent: raw.percent,
             severity: raw.severity.unwrap_or_else(|| "normal".to_string()),
@@ -404,99 +314,9 @@ fn meters_from(utilization: Utilization) -> Option<Vec<Meter>> {
     (!meters.is_empty()).then_some(meters)
 }
 
-const FIVE_HOURS: u64 = 5 * 60 * 60;
-const SEVEN_DAYS: u64 = 7 * 24 * 60 * 60;
-/// Scoped limits carry the same reset instant as the window they belong to, but
-/// computed a few microseconds apart.
-const SAME_WINDOW_TOLERANCE_SECONDS: i64 = 5;
-
-/// Which named window a limit belongs to, by its reset instant.
-///
-/// Falls back to the limit's kind when the named entries are absent, so a
-/// payload that drops them still produces a marker.
-fn window_for(
-    raw: &RawLimit,
-    five_hour: Option<DateTime<Utc>>,
-    seven_day: Option<DateTime<Utc>>,
-) -> Option<u64> {
-    let resets = raw.resets_at?;
-    let matches = |other: Option<DateTime<Utc>>| {
-        other.is_some_and(|o| {
-            (resets - o).num_seconds().abs() <= SAME_WINDOW_TOLERANCE_SECONDS
-        })
-    };
-    if matches(five_hour) {
-        Some(FIVE_HOURS)
-    } else if matches(seven_day) {
-        Some(SEVEN_DAYS)
-    } else if raw.kind == "session" {
-        Some(FIVE_HOURS)
-    } else if raw.kind.starts_with("weekly") {
-        Some(SEVEN_DAYS)
-    } else {
-        None
-    }
-}
-
-/// `default_claude_max_5x` reads as `Max 5x`, `claude_pro` as `Pro`; the
-/// prefixes are plumbing.
-fn plan_name(tier: &str) -> Option<String> {
-    let tier = tier.trim();
-    if tier.is_empty() {
-        return None;
-    }
-    let bare = tier
-        .strip_prefix("default_claude_")
-        .or_else(|| tier.strip_prefix("default_"))
-        .or_else(|| tier.strip_prefix("claude_"))
-        .unwrap_or(tier);
-    let mut words = bare.split('_').map(|w| {
-        let mut cs = w.chars();
-        match cs.next() {
-            Some(first) => first.to_uppercase().collect::<String>() + cs.as_str(),
-            None => String::new(),
-        }
-    });
-    let first = words.next()?;
-    Some(words.fold(first, |acc, w| acc + " " + &w))
-}
-
-fn scoped_model(scope: &Option<Scope>) -> Option<&str> {
-    scope.as_ref()?.model.as_ref()?.display_name.as_deref()
-}
-
-/// Wording matched to `/usage`, falling back to the raw kind for any limit type
-/// added later rather than dropping it.
-fn label_for(kind: &str, model: Option<&str>) -> String {
-    match (kind, model) {
-        ("session", _) => "Current session".to_string(),
-        ("weekly_all", _) => "Current week (all models)".to_string(),
-        ("weekly_scoped", Some(model)) => format!("Current week ({model})"),
-        ("weekly_scoped", None) => "Current week (scoped)".to_string(),
-        (other, Some(model)) => format!("{} ({model})", other.replace('_', " ")),
-        (other, None) => other.replace('_', " "),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn labels_match_the_usage_command() {
-        assert_eq!(label_for("session", None), "Current session");
-        assert_eq!(label_for("weekly_all", None), "Current week (all models)");
-        assert_eq!(
-            label_for("weekly_scoped", Some("Fable")),
-            "Current week (Fable)"
-        );
-    }
-
-    #[test]
-    fn an_unknown_limit_kind_is_still_shown() {
-        assert_eq!(label_for("monthly_thing", None), "monthly thing");
-        assert_eq!(label_for("monthly_thing", Some("Opus")), "monthly thing (Opus)");
-    }
 
     #[test]
     fn parses_the_shape_claude_code_writes() {
@@ -569,15 +389,6 @@ mod tests {
     }
 
     #[test]
-    fn plan_tier_reads_as_a_plan_name() {
-        assert_eq!(plan_name("default_claude_max_5x").as_deref(), Some("Max 5x"));
-        assert_eq!(plan_name("claude_pro").as_deref(), Some("Pro"));
-        assert_eq!(plan_name("claude_team").as_deref(), Some("Team"));
-        assert_eq!(plan_name("default_raven").as_deref(), Some("Raven"));
-        assert_eq!(plan_name("  "), None);
-    }
-
-    #[test]
     fn one_account_per_entry_keeping_the_fresher_cache() {
         // Two installs signed in as the same account must not both be offered.
         let make = |account: &str, ms: i64| Limits {
@@ -623,52 +434,6 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].account, "9fb0e902");
         assert!(found[0].live);
-    }
-
-    fn limit(kind: &str, resets: &str) -> RawLimit {
-        RawLimit {
-            kind: kind.to_string(),
-            percent: 0.0,
-            severity: None,
-            resets_at: Some(resets.parse().unwrap()),
-            scope: None,
-            is_active: false,
-        }
-    }
-
-    #[test]
-    fn a_window_is_recognised_by_its_reset_instant() {
-        let five: DateTime<Utc> = "2026-09-11T09:59:59.639712Z".parse().unwrap();
-        let seven: DateTime<Utc> = "2026-09-18T05:59:59.639734Z".parse().unwrap();
-        let session = limit("session", "2026-09-11T09:59:59.639712Z");
-        assert_eq!(window_for(&session, Some(five), Some(seven)), Some(FIVE_HOURS));
-        let weekly = limit("weekly_all", "2026-09-18T05:59:59.639734Z");
-        assert_eq!(window_for(&weekly, Some(five), Some(seven)), Some(SEVEN_DAYS));
-    }
-
-    #[test]
-    fn a_scoped_limit_matches_its_window_despite_the_microsecond_drift() {
-        // Real payloads compute these a few hundred microseconds apart.
-        let seven: DateTime<Utc> = "2026-09-18T05:59:59.639734Z".parse().unwrap();
-        let scoped = limit("weekly_scoped", "2026-09-18T05:59:59.639993Z");
-        assert_eq!(window_for(&scoped, None, Some(seven)), Some(SEVEN_DAYS));
-    }
-
-    #[test]
-    fn the_kind_stands_in_when_the_named_windows_are_missing() {
-        assert_eq!(
-            window_for(&limit("session", "2026-09-11T09:59:59Z"), None, None),
-            Some(FIVE_HOURS)
-        );
-        assert_eq!(
-            window_for(&limit("weekly_scoped", "2026-09-18T05:59:59Z"), None, None),
-            Some(SEVEN_DAYS)
-        );
-        // An unfamiliar kind gets no marker rather than a guessed one.
-        assert_eq!(
-            window_for(&limit("monthly_thing", "2026-09-18T05:59:59Z"), None, None),
-            None
-        );
     }
 
     #[test]
