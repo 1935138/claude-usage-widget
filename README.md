@@ -150,11 +150,24 @@ after it while the build still reports success.
 ## Project layout
 
 ```
-core/        pure Rust: install discovery, the usage API client, settings.
-             No Tauri dependency, so it builds and tests anywhere.
-core/src/bin/probe.rs   prints what the widget would show, without a window.
-src-tauri/   the Tauri 2 shell: commands and window sizing.
-src/         the UI (TypeScript + Vite, no framework).
+core/                    pure Rust, no Tauri dependency, so it builds and tests
+                         anywhere - including the Linux CI job.
+  discovery.rs           finding Claude Code installs, native and WSL
+  limits.rs              the figures the card shows
+    limits/payload.rs    the JSON Claude Code writes and the API answers with
+    limits/labels.rs     naming a limit
+    limits/windows.rs    how long a limit's window runs
+  live.rs                the usage API request
+    live/credentials.rs  reading the access token, never the refresh one
+    live/backoff.rs      waiting out a 429
+  usage.rs               token totals from the session logs
+  settings.rs            what the widget shows, and the defaults
+  bin/probe.rs           prints what the widget would show, without a window
+src-tauri/               the Tauri 2 shell
+  commands.rs            everything the page can call, and nothing else
+  layout.rs              sizing the window to its content, within the display
+  settings.rs            persisting settings to the app's config directory
+src/                     the UI (TypeScript + Vite, no framework)
 ```
 
 `core` is kept free of Tauri on purpose. Tauri pulls in GTK and dbus on Linux,

@@ -147,11 +147,24 @@ npm run build                                        # 타입, 번들, CSS 검�
 ## 구조
 
 ```
-core/        순수 Rust: 설치본 탐색, 사용량 API 클라이언트, 설정.
-             Tauri에 의존하지 않아 어디서든 빌드·테스트됩니다.
-core/src/bin/probe.rs   창 없이 위젯이 보여줄 내용을 출력합니다.
-src-tauri/   Tauri 2 셸: 커맨드와 창 크기 조절.
-src/         UI (TypeScript + Vite, 프레임워크 없음).
+core/                    순수 Rust. Tauri에 의존하지 않아 어디서든 빌드·테스트됩니다
+                         (리눅스 CI 잡이 이를 강제합니다).
+  discovery.rs           Claude Code 설치본 탐색 (네이티브·WSL)
+  limits.rs              카드에 표시할 수치
+    limits/payload.rs    Claude Code가 쓰는 JSON과 API 응답 형식
+    limits/labels.rs     한도 이름 짓기
+    limits/windows.rs    한도 창의 길이 계산
+  live.rs                사용량 API 요청
+    live/credentials.rs  액세스 토큰 읽기 (리프레시 토큰은 건드리지 않음)
+    live/backoff.rs      429 이후 대기
+  usage.rs               세션 로그에서 토큰 합계
+  settings.rs            표시 항목과 기본값
+  bin/probe.rs           창 없이 위젯이 보여줄 내용을 출력
+src-tauri/               Tauri 2 셸
+  commands.rs            페이지가 호출할 수 있는 것 전부, 그리고 그 외에는 없음
+  layout.rs              내용에 맞춘 창 크기 조절과 배치
+  settings.rs            앱 설정 디렉터리에 설정 저장
+src/                     UI (TypeScript + Vite, 프레임워크 없음)
 ```
 
 `core`를 Tauri에서 떼어 둔 것은 의도한 것입니다. Tauri는 리눅스에서 GTK와 dbus를
