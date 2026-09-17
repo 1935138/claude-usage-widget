@@ -9,6 +9,12 @@ import type { Meter, SectionKey } from "./types";
 export type Lang = "en" | "ko";
 
 export interface Strings {
+  /**
+   * The language this catalogue is written in, so that dates and times are
+   * written in it too: a Korean card should not be dated `Sep 18`.
+   */
+  lang: Lang;
+
   /** Title-bar buttons. */
   settings: string;
   refresh: string;
@@ -65,6 +71,8 @@ export interface Strings {
 }
 
 const en: Strings = {
+  lang: "en",
+
   settings: "Settings",
   refresh: "Refresh",
   close: "Close",
@@ -133,6 +141,8 @@ const en: Strings = {
 };
 
 const ko: Strings = {
+  lang: "ko",
+
   settings: "설정",
   refresh: "새로 고침",
   close: "닫기",
@@ -206,7 +216,8 @@ const CATALOGUES: Record<Lang, Strings> = { en, ko };
  *
  * `system` follows what the machine is set to display, which is what the
  * setting defaults to; the explicit choices are for when that guesses wrong.
- * Times are not decided here - they follow the machine's region either way.
+ * The answer also decides how dates and times are written, so that the card
+ * reads as one language rather than two.
  */
 export function resolveLang(setting: string, display = navigator.language): Lang {
   if (setting === "en" || setting === "ko") return setting;

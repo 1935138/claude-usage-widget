@@ -16,9 +16,9 @@ export const esc = (s: string): string =>
  * Every time on the card goes through here, so the clock, the reading's own
  * timestamp and the reset lines are always written the same way.
  */
-export function clockTime(at: Date, format: string, seconds = false): string {
+export function clockTime(at: Date, format: string, t: Strings, seconds = false): string {
   const twelve = format === "12";
-  return at.toLocaleTimeString([], {
+  return at.toLocaleTimeString(t.lang, {
     hour: twelve ? "numeric" : "2-digit",
     minute: "2-digit",
     ...(seconds ? { second: "2-digit" as const } : {}),
@@ -32,10 +32,10 @@ export function resetLabel(iso: string | null, format: string, t: Strings): stri
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
   const sameDay = at.toDateString() === new Date().toDateString();
-  const time = clockTime(at, format);
+  const time = clockTime(at, format, t);
   return sameDay
     ? t.resets(time)
-    : t.resetsOn(at.toLocaleDateString([], { month: "short", day: "numeric" }), time);
+    : t.resetsOn(at.toLocaleDateString(t.lang, { month: "short", day: "numeric" }), time);
 }
 
 /**
@@ -80,10 +80,10 @@ export function provenance(
   t: Strings,
 ): { text: string; detail: string; stale: boolean } {
   const at = new Date(limits.fetchedAt);
-  const time = clockTime(at, format);
+  const time = clockTime(at, format, t);
   const stale = !limits.live && Date.now() - at.getTime() > STALE_MS;
   const when = stale
-    ? `${at.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`
+    ? `${at.toLocaleDateString(t.lang, { month: "short", day: "numeric" })} ${time}`
     : time;
   const prefix = limits.live ? t.updated : t.cached;
   // Say why the live read did not happen. "Run /usage" is only the answer when

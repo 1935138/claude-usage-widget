@@ -56,15 +56,15 @@ describe("clockTime", () => {
   const at = new Date("2026-09-17T17:25:30");
 
   it("writes 24-hour times without a meridiem", () => {
-    expect(clockTime(at, "24")).toMatch(/^\d{2}:\d{2}$/);
+    expect(clockTime(at, "24", t)).toMatch(/^\d{2}:\d{2}$/);
   });
 
   it("writes 12-hour times with one", () => {
-    expect(clockTime(at, "12")).toMatch(/^\d{1,2}:\d{2}\s?(AM|PM)$/i);
+    expect(clockTime(at, "12", t)).toMatch(/^\d{1,2}:\d{2}\s?(AM|PM)$/i);
   });
 
   it("adds seconds only when asked", () => {
-    expect(clockTime(at, "24", true)).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(clockTime(at, "24", t, true)).toMatch(/^\d{2}:\d{2}:\d{2}$/);
   });
 });
 

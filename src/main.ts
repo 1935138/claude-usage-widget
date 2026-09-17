@@ -67,7 +67,7 @@ function applyFooter(): void {
 }
 
 function tick(): void {
-  clockEl.textContent = clockTime(new Date(), settings.timeFormat, true);
+  clockEl.textContent = clockTime(new Date(), settings.timeFormat, t, true);
 }
 
 /** Last height handed to the backend, to avoid resizing on every refresh. */
