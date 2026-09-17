@@ -68,6 +68,7 @@ the settings panel:
 | Refresh every | manual, 3m – 1h (default 5m) |
 | Clock | shown / hidden |
 | Time format | 24-hour (default) / 12-hour |
+| Language | follows the machine (default) / English / 한국어 |
 | Corners | square, slight, rounded (default), very rounded |
 
 Settings are stored as `settings.json` in the app's config directory and can be
@@ -77,6 +78,11 @@ the file, and a UTF-8 BOM is tolerated. `cornerRadius` accepts any value up to
 
 The window is undecorated and transparent, so Windows draws no frame around it.
 The card paints its own outline, which is what **Corners** shapes.
+
+The card is written in English or Korean, following the machine's display
+language unless you pick one. Times are not part of that choice: they follow the
+machine's own region, with **Time format** deciding only the 12- or 24-hour
+clock.
 
 ## Credentials
 

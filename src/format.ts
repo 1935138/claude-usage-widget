@@ -3,6 +3,7 @@
 // Pure: each of these takes what it needs, so nothing here reaches for the
 // settings or the DOM.
 
+import type { Strings } from "./i18n";
 import type { ExtraUsage, Limits, Meter } from "./types";
 
 /** A cache older than this is called out; it only refreshes when Claude Code runs. */
@@ -26,15 +27,15 @@ export function clockTime(at: Date, format: string, seconds = false): string {
 }
 
 /** Reset instants are absolute; render them in the viewer's own zone. */
-export function resetLabel(iso: string | null, format: string): string {
+export function resetLabel(iso: string | null, format: string, t: Strings): string {
   if (!iso) return "";
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
   const sameDay = at.toDateString() === new Date().toDateString();
   const time = clockTime(at, format);
   return sameDay
-    ? `Resets ${time}`
-    : `Resets ${at.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+    ? t.resets(time)
+    : t.resetsOn(at.toLocaleDateString([], { month: "short", day: "numeric" }), time);
 }
 
 /**
@@ -55,25 +56,15 @@ export function elapsedShare(m: Meter): number | null {
 }
 
 /** Short phrase for the credit overflow state, or "" when nothing is known. */
-export function extraUsagePhrase(extra: ExtraUsage | null): string {
+export function extraUsagePhrase(extra: ExtraUsage | null, t: Strings): string {
   if (!extra) return "";
   if (extra.enabled) {
-    return extra.percent === null
-      ? "extra usage on"
-      : `extra usage ${Math.round(extra.percent)}%`;
+    return extra.percent === null ? t.extraOn : t.extraShare(Math.round(extra.percent));
   }
   return extra.disabledReason
-    ? `extra usage off (${extra.disabledReason.replace(/_/g, " ")})`
-    : "extra usage off";
+    ? t.extraOffBecause(extra.disabledReason.replace(/_/g, " "))
+    : t.extraOff;
 }
-
-/** Why a reading is cached, in the few words the note line has room for. */
-export const REASONS: Record<string, string> = {
-  expired: "sign-in expired",
-  rateLimited: "API is rate-limiting",
-  requestFailed: "API did not answer",
-  noCredentials: "not signed in here",
-};
 
 /**
  * Where the figures came from and when.
@@ -86,6 +77,7 @@ export const REASONS: Record<string, string> = {
 export function provenance(
   limits: Limits,
   format: string,
+  t: Strings,
 ): { text: string; detail: string; stale: boolean } {
   const at = new Date(limits.fetchedAt);
   const time = clockTime(at, format);
@@ -93,14 +85,14 @@ export function provenance(
   const when = stale
     ? `${at.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`
     : time;
-  const prefix = limits.live ? "Updated" : "Cached";
+  const prefix = limits.live ? t.updated : t.cached;
   // Say why the live read did not happen. "Run /usage" is only the answer when
   // there is nothing more specific to report.
-  const why = limits.reason ? REASONS[limits.reason] : undefined;
-  const hint = why ? ` · ${why}` : stale ? " · run /usage to refresh" : "";
+  const why = limits.reason ? t.reasons[limits.reason] : undefined;
+  const hint = why ? ` · ${why}` : stale ? ` · ${t.runUsage}` : "";
   // Source, account and credit state are for when a number looks surprising,
   // which is not often enough to spend a line on.
-  const detail = [limits.source, `account ${limits.account}`, extraUsagePhrase(limits.extraUsage)]
+  const detail = [limits.source, `account ${limits.account}`, extraUsagePhrase(limits.extraUsage, t)]
     .filter(Boolean)
     .join(" · ");
   return { text: `${prefix} · ${when}${hint}`, detail, stale };

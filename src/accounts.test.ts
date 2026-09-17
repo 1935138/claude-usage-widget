@@ -26,6 +26,7 @@ const settings = (account: string | null): Settings => ({
   refreshSeconds: 300,
   clock: "right",
   timeFormat: "24",
+  language: "system",
   cornerRadius: 12,
 });
 

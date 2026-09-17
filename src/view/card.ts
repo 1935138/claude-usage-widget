@@ -4,6 +4,7 @@
 import { accountName, chosen, identity } from "../accounts";
 import { HUES } from "../choices";
 import { elapsedShare, esc, resetLabel } from "../format";
+import { meterLabel, type Strings } from "../i18n";
 import type { Limits, LoginState, Meter, Settings } from "../types";
 
 /**
@@ -11,15 +12,13 @@ import type { Limits, LoginState, Meter, Settings } from "../types";
  * to. A bar ahead of its marker is burning the window faster than the window
  * is passing, and will run out before the reset.
  */
-export function paceMarker(m: Meter, show: boolean): string {
+export function paceMarker(m: Meter, show: boolean, t: Strings): string {
   if (!show) return "";
   const share = elapsedShare(m);
   if (share === null) return "";
   const elapsed = Math.round(share * 100);
-  const verdict =
-    m.percent > elapsed + 1
-      ? `using faster than the clock (${Math.round(m.percent)}% used, ${elapsed}% elapsed)`
-      : `within pace (${Math.round(m.percent)}% used, ${elapsed}% elapsed)`;
+  const used = Math.round(m.percent);
+  const verdict = m.percent > elapsed + 1 ? t.paceAhead(used, elapsed) : t.paceWithin(used, elapsed);
   return `<div class="pace" style="left:${share * 100}%" title="${esc(verdict)}"></div>`;
 }
 
@@ -30,17 +29,17 @@ export function paceMarker(m: Meter, show: boolean): string {
  * How close a bar has crept to its cap is carried by the percentage beside it
  * and by the pace marker, not by turning the bar amber or red.
  */
-export function meter(m: Meter, hue: string, pace: boolean, format: string): string {
+export function meter(m: Meter, hue: string, pace: boolean, format: string, t: Strings): string {
   const pct = Math.max(0, Math.min(100, m.percent));
-  const reset = resetLabel(m.resetsAt, format);
+  const reset = resetLabel(m.resetsAt, format, t);
   return `<div class="meter${m.isActive ? " is-active" : ""}">
       <div class="row-head">
-        <span class="row-label">${esc(m.label)}</span>
+        <span class="row-label">${esc(meterLabel(m, t))}</span>
         <span class="row-value">${Math.round(m.percent)}%</span>
       </div>
       <div class="track">
         <div class="fill" style="width:${pct}%;background:${esc(hue)}"></div>
-        ${paceMarker(m, pace)}
+        ${paceMarker(m, pace, t)}
       </div>
       ${reset ? `<div class="meter-reset">${esc(reset)}</div>` : ""}
     </div>`;
@@ -67,14 +66,14 @@ export const wanted = (m: Meter, s: Settings): boolean =>
  * The dropdown only appears with more than one account, but the plan line is
  * worth showing either way.
  */
-export function accountPicker(all: Limits[], current: Limits): string {
+export function accountPicker(all: Limits[], current: Limits, t: Strings): string {
   const picker =
     all.length < 2
       ? `<div class="account-name">${esc(accountName(current))}</div>`
-      : `<select id="account" class="picker" title="Quota is per account; these installs are signed in as different ones">${all
+      : `<select id="account" class="picker" title="${esc(t.accountPickerTitle)}">${all
           .map(
             (l) =>
-              `<option value="${esc(identity(l))}"${identity(l) === identity(current) ? " selected" : ""}>${esc(accountName(l))}${l.live ? "" : " (cached)"}</option>`,
+              `<option value="${esc(identity(l))}"${identity(l) === identity(current) ? " selected" : ""}>${esc(accountName(l))}${l.live ? "" : t.cachedSuffix}</option>`,
           )
           .join("")}</select>`;
 
@@ -86,24 +85,22 @@ export function accountPicker(all: Limits[], current: Limits): string {
 }
 
 /** Centred prompt shown when this machine has never run `claude login`. */
-export function loginRequired(state: LoginState): string {
+export function loginRequired(state: LoginState, t: Strings): string {
   const waiting = state === "waiting";
-  const note = waiting
-    ? "Complete the sign-in in the console window."
-    : "No Claude Code login found on this machine.";
+  const note = waiting ? t.loginWaitingNote : t.loginMissing;
   return `<div class="login-panel">
-      <p class="note">${note}</p>
-      <button id="login" class="login-btn" type="button"${waiting ? " disabled" : ""}>${
-        waiting ? "Waiting for sign-in…" : "Login Required"
-      }</button>
+      <p class="note">${esc(note)}</p>
+      <button id="login" class="login-btn" type="button"${waiting ? " disabled" : ""}>${esc(
+        waiting ? t.loginWaitingButton : t.loginButton,
+      )}</button>
     </div>`;
 }
 
-export function render(all: Limits[], s: Settings, login: LoginState): string {
+export function render(all: Limits[], s: Settings, login: LoginState, t: Strings): string {
   if (all.length === 0) {
     return login === "ok"
-      ? `<p class="note">No cached usage found. Run Claude Code once to populate it.</p>`
-      : loginRequired(login);
+      ? `<p class="note">${esc(t.noCache)}</p>`
+      : loginRequired(login, t);
   }
   const limits = chosen(all, s)!;
   const meters = limits.meters.filter((m) => wanted(m, s));
@@ -113,11 +110,11 @@ export function render(all: Limits[], s: Settings, login: LoginState): string {
     .map((m) => {
       const hue = hueFor(m, scopedSeen);
       if (m.kind !== "session" && m.kind !== "weekly_all") scopedSeen += 1;
-      return meter(m, hue, s.pace, s.timeFormat);
+      return meter(m, hue, s.pace, s.timeFormat, t);
     })
     .join("");
 
   return `
-    ${accountPicker(all, limits)}
-    ${bars || `<p class="note">Nothing selected. Use the sliders to turn a meter back on.</p>`}`;
+    ${accountPicker(all, limits, t)}
+    ${bars || `<p class="note">${esc(t.nothingSelected)}</p>`}`;
 }

@@ -11,6 +11,8 @@ export interface Meter {
   resetsAt: string | null;
   windowSeconds: number | null;
   isActive: boolean;
+  /** Model a scoped limit belongs to; the card builds the label from it. */
+  scopeModel: string | null;
 }
 
 /** Mirrors `claude_usage_core::limits::ExtraUsage`. */
@@ -44,6 +46,7 @@ export interface Settings {
   refreshSeconds: number;
   clock: string;
   timeFormat: string;
+  language: string;
   cornerRadius: number;
 }
 
@@ -52,3 +55,6 @@ export interface Settings {
  * `waiting` while a `claude login` this widget started is still running.
  */
 export type LoginState = "ok" | "needed" | "waiting";
+
+/** The boolean switches, as distinct from the account and interval settings. */
+export type SectionKey = "session" | "weekly" | "pace" | "provenance";

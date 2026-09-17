@@ -53,6 +53,9 @@ pub struct Meter {
     pub window_seconds: Option<u64>,
     /// Whether this is the window currently being consumed.
     pub is_active: bool,
+    /// Model a scoped limit belongs to, e.g. `Fable`. The card composes its own
+    /// label from this and the kind, so that it can do so in its own language.
+    pub scope_model: Option<String>,
 }
 
 /// Whether pay-as-you-go credits can absorb overflow once a limit is hit.
@@ -300,6 +303,7 @@ fn meters_from(utilization: Utilization) -> Option<Vec<Meter>> {
         .map(|raw| Meter {
             window_seconds: window_for(&raw, five_hour, seven_day),
             label: label_for(&raw.kind, scoped_model(&raw.scope)),
+            scope_model: scoped_model(&raw.scope).map(str::to_string),
             kind: raw.kind,
             percent: raw.percent,
             severity: raw.severity.unwrap_or_else(|| "normal".to_string()),

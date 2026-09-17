@@ -6,9 +6,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { chosen, identity } from "./accounts";
-import type { SectionKey } from "./choices";
 import { clockTime, esc, provenance } from "./format";
-import type { Limits, LoginState, Settings } from "./types";
+import { resolveLang, strings, type Strings } from "./i18n";
+import type { Limits, LoginState, SectionKey, Settings } from "./types";
 import { render } from "./view/card";
 import { renderSettings } from "./view/settings";
 
@@ -23,6 +23,19 @@ const footerEl = document.getElementById("footer")!;
 const noteEl = document.getElementById("provenance")!;
 const versionEl = document.getElementById("version")!;
 const clockEl = document.getElementById("clock")!;
+
+/**
+ * Applies the chosen language.
+ *
+ * The title bar is the only text outside the rendered card, so it is set from
+ * here rather than carried in the markup.
+ */
+function applyLanguage(): void {
+  t = strings(resolveLang(settings.language));
+  document.getElementById("settings")!.title = t.settings;
+  document.getElementById("refresh")!.title = t.refresh;
+  document.getElementById("close")!.title = t.close;
+}
 
 /**
  * Applies the card's corner radius.
@@ -42,7 +55,8 @@ function applyCornerRadius(): void {
  */
 function applyFooter(): void {
   const limits = showingSettings ? undefined : chosen(accounts, settings);
-  const note = limits && settings.provenance ? provenance(limits, settings.timeFormat) : undefined;
+  const note =
+    limits && settings.provenance ? provenance(limits, settings.timeFormat, t) : undefined;
   noteEl.textContent = note?.text ?? "";
   noteEl.title = note?.detail ?? "";
   noteEl.classList.toggle("stale", note?.stale ?? false);
@@ -104,8 +118,11 @@ let settings: Settings = {
   refreshSeconds: 300,
   clock: "right",
   timeFormat: "24",
+  language: "system",
   cornerRadius: 12,
 };
+/** The words the card is written in, settled once the settings have loaded. */
+let t: Strings = strings(resolveLang("system"));
 let showingSettings = false;
 /** Filled in at startup; the footer shows it while the settings panel is open. */
 let version = "";
@@ -123,8 +140,8 @@ const lastLive = new Map<string, Limits>();
 
 async function draw(): Promise<void> {
   contentEl.innerHTML = showingSettings
-    ? renderSettings(settings)
-    : render(accounts, settings, login);
+    ? renderSettings(settings, t)
+    : render(accounts, settings, login, t);
   applyFooter();
   await fitWindow();
 }
@@ -157,7 +174,7 @@ async function load(): Promise<void> {
     const missing = accounts.length === 0 && (await invoke<boolean>("needs_login"));
     login = missing ? (login === "waiting" ? "waiting" : "needed") : "ok";
   } catch (err) {
-    contentEl.innerHTML = `<p class="note">Could not read usage: ${esc(String(err))}</p>`;
+    contentEl.innerHTML = `<p class="note">${esc(t.readError(String(err)))}</p>`;
     await fitWindow();
     return;
   }
@@ -227,6 +244,13 @@ contentEl.addEventListener("change", (event) => {
     void draw();
     return;
   }
+  if (target instanceof HTMLSelectElement && target.id === "language") {
+    settings.language = target.value;
+    persist();
+    applyLanguage();
+    void draw();
+    return;
+  }
   if (target instanceof HTMLSelectElement && target.id === "clock-position") {
     settings.clock = target.value;
     persist();
@@ -268,6 +292,10 @@ void (async () => {
   version = await getVersion()
     .then((v) => `v${v}`)
     .catch(() => "");
+  applyLanguage();
+  // The markup's placeholder is English; replace it before the first read so a
+  // Korean card does not flash it.
+  contentEl.innerHTML = `<p class="note">${esc(t.loading)}</p>`;
   applyCornerRadius();
   applyFooter();
   scheduleRefresh();

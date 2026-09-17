@@ -9,7 +9,10 @@ import {
   resetLabel,
   STALE_MS,
 } from "./format";
+import { strings } from "./i18n";
 import type { Limits, Meter } from "./types";
+
+const t = strings("en");
 
 const meter = (over: Partial<Meter> = {}): Meter => ({
   kind: "session",
@@ -19,6 +22,7 @@ const meter = (over: Partial<Meter> = {}): Meter => ({
   resetsAt: null,
   windowSeconds: null,
   isActive: false,
+  scopeModel: null,
   ...over,
 });
 
@@ -66,21 +70,21 @@ describe("clockTime", () => {
 
 describe("resetLabel", () => {
   it("says nothing when there is no reset instant", () => {
-    expect(resetLabel(null, "24")).toBe("");
+    expect(resetLabel(null, "24", t)).toBe("");
   });
 
   it("says nothing for an instant it cannot read", () => {
-    expect(resetLabel("the day after tomorrow", "24")).toBe("");
+    expect(resetLabel("the day after tomorrow", "24", t)).toBe("");
   });
 
   it("gives the time alone for a reset later today", () => {
     const later = new Date(Date.now() + 60 * 60_000);
-    expect(resetLabel(later.toISOString(), "24")).toMatch(/^Resets \d{2}:\d{2}$/);
+    expect(resetLabel(later.toISOString(), "24", t)).toMatch(/^Resets \d{2}:\d{2}$/);
   });
 
   it("names the day for a reset beyond today", () => {
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60_000);
-    expect(resetLabel(nextWeek.toISOString(), "24")).toMatch(/^Resets .+, \d{2}:\d{2}$/);
+    expect(resetLabel(nextWeek.toISOString(), "24", t)).toMatch(/^Resets .+, \d{2}:\d{2}$/);
   });
 });
 
@@ -105,51 +109,51 @@ describe("elapsedShare", () => {
 
 describe("extraUsagePhrase", () => {
   it("says nothing when the cache carried no credit state", () => {
-    expect(extraUsagePhrase(null)).toBe("");
+    expect(extraUsagePhrase(null, t)).toBe("");
   });
 
   it("gives the share spent when there is one", () => {
-    expect(extraUsagePhrase({ enabled: true, disabledReason: null, percent: 12.4 })).toBe(
+    expect(extraUsagePhrase({ enabled: true, disabledReason: null, percent: 12.4 }, t)).toBe(
       "extra usage 12%",
     );
   });
 
   it("settles for on when the share is unknown", () => {
-    expect(extraUsagePhrase({ enabled: true, disabledReason: null, percent: null })).toBe(
+    expect(extraUsagePhrase({ enabled: true, disabledReason: null, percent: null }, t)).toBe(
       "extra usage on",
     );
   });
 
   it("reads the reason back as words", () => {
     expect(
-      extraUsagePhrase({ enabled: false, disabledReason: "out_of_credits", percent: null }),
+      extraUsagePhrase({ enabled: false, disabledReason: "out_of_credits", percent: null }, t),
     ).toBe("extra usage off (out of credits)");
   });
 });
 
 describe("provenance", () => {
   it("calls a live reading updated, and does not call it stale", () => {
-    const { text, stale } = provenance(limits(), "24");
+    const { text, stale } = provenance(limits(), "24", t);
     expect(text).toMatch(/^Updated · \d{2}:\d{2}$/);
     expect(stale).toBe(false);
   });
 
   it("dates a cache old enough to mislead, and says what to do", () => {
     const old = new Date(Date.now() - STALE_MS - 60_000).toISOString();
-    const { text, stale } = provenance(limits({ live: false, fetchedAt: old }), "24");
+    const { text, stale } = provenance(limits({ live: false, fetchedAt: old }), "24", t);
     expect(stale).toBe(true);
     expect(text).toMatch(/^Cached · .+ \d{2}:\d{2} · run \/usage to refresh$/);
   });
 
   it("names the reason instead when the backend gave one", () => {
     const old = new Date(Date.now() - STALE_MS - 60_000).toISOString();
-    const { text } = provenance(limits({ live: false, fetchedAt: old, reason: "expired" }), "24");
+    const { text } = provenance(limits({ live: false, fetchedAt: old, reason: "expired" }), "24", t);
     expect(text).toContain("sign-in expired");
     expect(text).not.toContain("run /usage");
   });
 
   it("puts the source and account in the tooltip, not the line", () => {
-    const { text, detail } = provenance(limits({ source: "WSL: Ubuntu" }), "24");
+    const { text, detail } = provenance(limits({ source: "WSL: Ubuntu" }), "24", t);
     expect(detail).toBe("WSL: Ubuntu · account c8abb3bc");
     expect(text).not.toContain("WSL");
   });
