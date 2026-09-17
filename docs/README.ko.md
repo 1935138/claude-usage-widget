@@ -141,6 +141,8 @@ npm run tauri build --no-bundle  # 실행 파일만
   `cargo build --release`로 만든 바이너리는 여전히 dev 서버를 바라봅니다.
 - Windows 셸에서 실행하세요. WSL 셸에서는 Windows Tauri CLI가 리눅스 `PATH`를
   물려받아 `cargo metadata ... program not found`로 실패합니다.
+- 빌드 전에 위젯을 종료하세요. Windows는 실행 중인 `.exe`를 잠그기 때문에 링크
+  단계에서 `failed to remove file ... Access is denied. (os error 5)`로 실패합니다.
 
 ### 리눅스에서 크로스 컴파일
 

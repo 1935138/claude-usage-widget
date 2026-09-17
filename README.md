@@ -142,6 +142,9 @@ Three things worth knowing:
 - Run it from a Windows shell. From WSL it fails with
   `cargo metadata ... program not found`, because the Windows Tauri CLI inherits
   WSL's Linux `PATH`.
+- Close the widget before building. Windows locks a running `.exe`, and the
+  build fails at the link step with `failed to remove file ... Access is
+  denied. (os error 5)`.
 
 ### Cross-compiling from Linux
 
