@@ -80,7 +80,10 @@ body {
 }
 
 .card {
-  height: 100vh;
+  /* Content-driven, not `100vh`: the viewport is a rounded number of CSS pixels
+     and the card would end a fraction below the window, clipping its own bottom
+     border. The window is sized to the card, not the other way round. */
+  height: auto;
   display: flex;
   flex-direction: column;
   background: var(--surface-1);
