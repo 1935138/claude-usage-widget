@@ -89,103 +89,11 @@ Claude Code가 설치되어 있고 로그인되어 있어야 합니다. 그 외�
 없습니다. 같은 이유로 로그인도 위젯이 직접 처리하지 않고 별도 콘솔의
 `claude login`에 맡깁니다.
 
-## 빌드
+## 개발
 
-MSVC 빌드 도구, WebView2, Node, Rust(`winget install Rustlang.Rustup`)가
-필요합니다.
-
-```sh
-npm install
-npm run tauri dev                # 라이브 리로드 창
-npm run tauri build              # 설치 파일
-npm run tauri build --no-bundle  # 실행 파일만
-```
-
-알아두면 좋은 세 가지입니다.
-
-- 프로젝트는 Windows 파일 시스템에 두세요. Windows `node.exe`는 `/home/...`
-  경로를 해석하지 못하고, `\\wsl.localhost` 너머로 cargo를 돌리면 못 쓸 만큼
-  느립니다.
-- `cargo build`를 직접 쓰지 말고 Tauri CLI로 빌드하세요. `tauri-build`는 CLI가
-  아니라고 알려주지 않으면 `cfg(dev)`를 켜기 때문에, 그냥
-  `cargo build --release`로 만든 바이너리는 여전히 dev 서버를 바라봅니다.
-- Windows 셸에서 실행하세요. WSL 셸에서는 Windows Tauri CLI가 리눅스 `PATH`를
-  물려받아 `cargo metadata ... program not found`로 실패합니다.
-- 빌드 전에 위젯을 종료하세요. Windows는 실행 중인 `.exe`를 잠그기 때문에 링크
-  단계에서 `failed to remove file ... Access is denied. (os error 5)`로 실패합니다.
-
-### 리눅스에서 크로스 컴파일
-
-```sh
-rustup target add x86_64-pc-windows-msvc i686-pc-windows-msvc
-cargo install --locked cargo-xwin
-sudo apt install llvm clang lld     # llvm-rc, clang-cl, lld-link
-
-export XWIN_ACCEPT_LICENSE=1
-export XWIN_ARCH=x86_64,x86         # x86 import lib이 없으면 32비트 링크 실패
-npm install
-npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
-```
-
-`npm run tauri dev`는 창을 띄우는 명령이라 Windows에서만 동작합니다. 크로스
-빌드에는 `CARGO_TARGET_DIR`로 별도 디렉터리를 주세요. 그러지 않으면 호스트
-빌드와 `target/debug`를 두고 다툽니다.
-
-### 점검
-
-```sh
-cargo test --workspace
-cargo run -p claude-usage-core --bin probe           # 위젯이 보여줄 내용
-cargo run -p claude-usage-core --bin probe -- --json # UI가 받는 그대로
-npm test                                             # 순수 함수 테스트
-npm run build                                        # 타입, 번들, CSS 검사
-```
-
-`npm run build`는 마지막에 CSS가 끝까지 압축됐는지 확인합니다. 규칙 하나가
-깨져 있으면 esbuild가 그 뒤를 원문 그대로 흘려보내는데, 빌드는 성공으로 끝나면서
-이후 규칙이 전부 사라집니다.
-
-## 구조
-
-```
-core/                    순수 Rust. Tauri에 의존하지 않아 어디서든 빌드·테스트됩니다
-                         (리눅스 CI 잡이 이를 강제합니다).
-  discovery.rs           Claude Code 설치본 탐색 (네이티브·WSL)
-  limits.rs              카드에 표시할 수치
-    limits/payload.rs    Claude Code가 쓰는 JSON과 API 응답 형식
-    limits/labels.rs     한도 이름 짓기
-    limits/windows.rs    한도 창의 길이 계산
-  live.rs                사용량 API 요청
-    live/credentials.rs  액세스 토큰 읽기 (리프레시 토큰은 건드리지 않음)
-    live/backoff.rs      429 이후 대기
-  usage.rs               세션 로그에서 토큰 합계
-  settings.rs            표시 항목과 기본값
-  bin/probe.rs           창 없이 위젯이 보여줄 내용을 출력
-src-tauri/               Tauri 2 셸
-  commands.rs            페이지가 호출할 수 있는 것 전부, 그리고 그 외에는 없음
-  layout.rs              내용에 맞춘 창 크기 조절과 배치
-  settings.rs            앱 설정 디렉터리에 설정 저장
-src/                     UI (TypeScript + Vite, 프레임워크 없음)
-  types.ts               IPC 경계를 오가는 타입
-  format.ts              값을 문구로: 시각, 퍼센트, 출처 표기
-  accounts.ts            어느 계정의 수치를 보여줄지
-  choices.ts             설정 패널의 선택지
-  view/card.ts           미터와 계정 줄
-  view/settings.ts       설정 패널
-  main.ts                상태, 이벤트, 백엔드 호출
-```
-
-`core`를 Tauri에서 떼어 둔 것은 의도한 것입니다. Tauri는 리눅스에서 GTK와 dbus를
-끌어오는데, 그러면 로직 테스트를 제대로 갖춰진 Windows 환경에서만 돌릴 수 있게
-됩니다.
-
-## 색상
-
-배경과 글자색은 Anthropic 브랜드 팔레트를 씁니다. 막대는 아니었습니다. 브랜드
-강조색끼리는 색각 이상 검사를 통과하지 못해서, 브랜드 클레이에 가장 가까운
-주황을 앞세운 검증된 색상을 대신 씁니다. 색은 항목 구분에만 씁니다. 막대가
-얼마나 찼든 색은 그대로이고, 한도에 얼마나 가까운지는 퍼센트 숫자와 페이스
-마커가 알려줍니다.
+빌드 방법과 점검 명령은 [CONTRIBUTING.md](../CONTRIBUTING.md), 코드 구조와 그렇게
+나눈 이유는 [docs/architecture.md](architecture.md)에 있습니다. 개발 문서는 영어로만
+관리합니다.
 
 ## 라이선스
 

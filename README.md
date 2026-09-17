@@ -92,103 +92,11 @@ Errors carry no detail from the credentials file, so no token material can reach
 a log or the UI. Signing in is delegated to `claude login` in its own console
 for the same reason.
 
-## Building
+## Contributing
 
-Requires MSVC build tools, WebView2, Node and Rust
-(`winget install Rustlang.Rustup`).
-
-```sh
-npm install
-npm run tauri dev                # live-reloading window
-npm run tauri build              # installer
-npm run tauri build --no-bundle  # just the .exe
-```
-
-Three things worth knowing:
-
-- Keep the project on the Windows filesystem. Windows `node.exe` cannot resolve
-  a `/home/...` path, and cargo over `\\wsl.localhost` is unusably slow.
-- Build through the Tauri CLI, never plain `cargo build`. `tauri-build` sets
-  `cfg(dev)` unless the CLI says otherwise, so a bare `cargo build --release`
-  produces a binary that still points at the dev server.
-- Run it from a Windows shell. From WSL it fails with
-  `cargo metadata ... program not found`, because the Windows Tauri CLI inherits
-  WSL's Linux `PATH`.
-- Close the widget before building. Windows locks a running `.exe`, and the
-  build fails at the link step with `failed to remove file ... Access is
-  denied. (os error 5)`.
-
-### Cross-compiling from Linux
-
-```sh
-rustup target add x86_64-pc-windows-msvc i686-pc-windows-msvc
-cargo install --locked cargo-xwin
-sudo apt install llvm clang lld     # llvm-rc, clang-cl, lld-link
-
-export XWIN_ACCEPT_LICENSE=1
-export XWIN_ARCH=x86_64,x86         # x86 import libs, or the 32-bit link fails
-npm install
-npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
-```
-
-`npm run tauri dev` still has to run on Windows. Give the cross-build its own
-`CARGO_TARGET_DIR`, or host and cross builds will fight over `target/debug`.
-
-### Checks
-
-```sh
-cargo test --workspace
-cargo run -p claude-usage-core --bin probe           # what the widget would show
-cargo run -p claude-usage-core --bin probe -- --json # exactly what the UI receives
-npm test                                             # the pure frontend functions
-npm run build                                        # types, bundle, CSS check
-```
-
-`npm run build` ends by checking that the CSS fully minified. A malformed rule
-makes esbuild pass the rest of the file through verbatim, dropping every rule
-after it while the build still reports success.
-
-## Project layout
-
-```
-core/                    pure Rust, no Tauri dependency, so it builds and tests
-                         anywhere - including the Linux CI job.
-  discovery.rs           finding Claude Code installs, native and WSL
-  limits.rs              the figures the card shows
-    limits/payload.rs    the JSON Claude Code writes and the API answers with
-    limits/labels.rs     naming a limit
-    limits/windows.rs    how long a limit's window runs
-  live.rs                the usage API request
-    live/credentials.rs  reading the access token, never the refresh one
-    live/backoff.rs      waiting out a 429
-  usage.rs               token totals from the session logs
-  settings.rs            what the widget shows, and the defaults
-  bin/probe.rs           prints what the widget would show, without a window
-src-tauri/               the Tauri 2 shell
-  commands.rs            everything the page can call, and nothing else
-  layout.rs              sizing the window to its content, within the display
-  settings.rs            persisting settings to the app's config directory
-src/                     the UI (TypeScript + Vite, no framework)
-  types.ts               the shapes that cross the IPC boundary
-  format.ts              values into words: times, percentages, provenance
-  accounts.ts            which account's figures are on the card
-  choices.ts             what the settings panel offers
-  view/card.ts           the meters and the account line
-  view/settings.ts       the settings panel
-  main.ts                state, events and the calls to the backend
-```
-
-`core` is kept free of Tauri on purpose. Tauri pulls in GTK and dbus on Linux,
-which would make the logic untestable anywhere but a fully provisioned Windows
-machine.
-
-## Colours
-
-Surfaces and ink come from Anthropic's brand palette. The bars do not: the brand
-accents fail a colour-blindness check against each other, so the bars use
-validated hues instead, led by the orange nearest the brand clay. Colour carries
-identity only: a bar keeps its hue however full it is, and how close it is to
-its cap is left to the percentage and the pace marker.
+Building it, the checks, and how the code is laid out:
+[CONTRIBUTING.md](CONTRIBUTING.md) and
+[docs/architecture.md](docs/architecture.md).
 
 ## License
 
