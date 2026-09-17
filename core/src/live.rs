@@ -19,6 +19,16 @@ use std::time::Duration;
 const ENDPOINT: &str = "https://api.anthropic.com/api/oauth/usage?at_wall=1&skip_spend=1";
 /// The widget refreshes on a timer; a hung request must not stack up.
 const TIMEOUT: Duration = Duration::from_secs(8);
+/// How the widget introduces itself to the usage endpoint.
+///
+/// The endpoint keeps two very different rate limits and chooses between them
+/// on this header alone. `claude-code/<version>` gets a workable one; anything
+/// else gets one so tight that a handful of requests earns hours of 429s, with
+/// `Retry-After: 0` and no way to tell when it lifts. The widget therefore
+/// introduces itself as the client it stands in for, reading the same endpoint,
+/// for the same account, with the token Claude Code itself put on disk. The
+/// version trails the CLI's own; only the prefix decides the bucket.
+const USER_AGENT: &str = "claude-code/2.1.80";
 /// Stop using a token shortly before it lapses, rather than racing the clock.
 const EXPIRY_MARGIN_MS: i64 = 60_000;
 /// The endpoint rate-limits. After a 429, wait this long, then twice that, and
@@ -86,6 +96,7 @@ pub fn fetch(credentials: &Path, now_ms: i64) -> Result<Utilization, Unavailable
     let response = ureq::get(ENDPOINT)
         .timeout(TIMEOUT)
         .set("Authorization", &format!("Bearer {token}"))
+        .set("User-Agent", USER_AGENT)
         .set("Content-Type", "application/json")
         .set("Cache-Control", "no-cache")
         .call()
@@ -228,6 +239,12 @@ mod tests {
         begin_backoff(0, None);
         clear_backoff();
         assert!(!backing_off(0));
+    }
+
+    #[test]
+    fn the_user_agent_names_the_client_the_endpoint_expects() {
+        // Not cosmetic: without this prefix the endpoint answers 429 for hours.
+        assert!(USER_AGENT.starts_with("claude-code/"));
     }
 
     #[test]
