@@ -165,6 +165,13 @@ src-tauri/               Tauri 2 셸
   layout.rs              내용에 맞춘 창 크기 조절과 배치
   settings.rs            앱 설정 디렉터리에 설정 저장
 src/                     UI (TypeScript + Vite, 프레임워크 없음)
+  types.ts               IPC 경계를 오가는 타입
+  format.ts              값을 문구로: 시각, 퍼센트, 출처 표기
+  accounts.ts            어느 계정의 수치를 보여줄지
+  choices.ts             설정 패널의 선택지
+  view/card.ts           미터와 계정 줄
+  view/settings.ts       설정 패널
+  main.ts                상태, 이벤트, 백엔드 호출
 ```
 
 `core`를 Tauri에서 떼어 둔 것은 의도한 것입니다. Tauri는 리눅스에서 GTK와 dbus를

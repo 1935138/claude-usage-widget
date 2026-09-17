@@ -168,6 +168,13 @@ src-tauri/               the Tauri 2 shell
   layout.rs              sizing the window to its content, within the display
   settings.rs            persisting settings to the app's config directory
 src/                     the UI (TypeScript + Vite, no framework)
+  types.ts               the shapes that cross the IPC boundary
+  format.ts              values into words: times, percentages, provenance
+  accounts.ts            which account's figures are on the card
+  choices.ts             what the settings panel offers
+  view/card.ts           the meters and the account line
+  view/settings.ts       the settings panel
+  main.ts                state, events and the calls to the backend
 ```
 
 `core` is kept free of Tauri on purpose. Tauri pulls in GTK and dbus on Linux,
