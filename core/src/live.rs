@@ -90,8 +90,8 @@ pub fn fetch(credentials: &Path, now_ms: i64) -> Result<Utilization, Unavailable
         .set("Cache-Control", "no-cache")
         .call()
         .map_err(|error| match error {
-            ureq::Error::Status(429, _) => {
-                begin_backoff(now_ms);
+            ureq::Error::Status(429, response) => {
+                begin_backoff(now_ms, retry_after_ms(&response));
                 Unavailable::RateLimited
             }
             _ => Unavailable::RequestFailed,
@@ -112,13 +112,23 @@ fn backing_off(now_ms: i64) -> bool {
         .is_some_and(|(until, _)| now_ms < until)
 }
 
-/// Doubles the wait on each consecutive 429, up to the ceiling.
-fn begin_backoff(now_ms: i64) {
+/// How long the endpoint itself asked us to wait, if it said.
+///
+/// `Retry-After` is in seconds here. A value that is missing, unparseable or
+/// absurd is ignored rather than trusted.
+fn retry_after_ms(response: &ureq::Response) -> Option<i64> {
+    let seconds = response.header("retry-after")?.trim().parse::<i64>().ok()?;
+    (seconds > 0).then(|| (seconds * 1000).min(BACKOFF_MAX_MS))
+}
+
+/// Waits as long as the endpoint asked, or, failing an answer, twice as long as
+/// last time up to the ceiling.
+fn begin_backoff(now_ms: i64, asked_ms: Option<i64>) {
     if let Ok(mut state) = BACKOFF.lock() {
-        let next = match *state {
+        let next = asked_ms.unwrap_or_else(|| match *state {
             Some((_, previous)) => (previous * 2).min(BACKOFF_MAX_MS),
             None => BACKOFF_START_MS,
-        };
+        });
         *state = Some((now_ms + next, next));
     }
 }
@@ -197,17 +207,17 @@ mod tests {
     #[test]
     fn backoff_doubles_then_stops_at_the_ceiling() {
         clear_backoff();
-        begin_backoff(0);
+        begin_backoff(0, None);
         assert!(backing_off(BACKOFF_START_MS - 1));
         // The wait elapses.
         assert!(!backing_off(BACKOFF_START_MS + 1));
 
         // A second 429 waits twice as long.
-        begin_backoff(0);
+        begin_backoff(0, None);
         assert!(backing_off(BACKOFF_START_MS * 2 - 1));
 
         for _ in 0..10 {
-            begin_backoff(0);
+            begin_backoff(0, None);
         }
         assert!(!backing_off(BACKOFF_MAX_MS + 1));
         clear_backoff();
@@ -215,9 +225,18 @@ mod tests {
 
     #[test]
     fn a_success_clears_the_backoff() {
-        begin_backoff(0);
+        begin_backoff(0, None);
         clear_backoff();
         assert!(!backing_off(0));
+    }
+
+    #[test]
+    fn the_endpoints_own_wait_wins_over_the_doubling() {
+        clear_backoff();
+        begin_backoff(0, Some(30_000));
+        assert!(backing_off(29_999));
+        assert!(!backing_off(30_001));
+        clear_backoff();
     }
 
     #[test]
