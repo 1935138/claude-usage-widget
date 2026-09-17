@@ -50,7 +50,11 @@ fn main() {
     for l in &all {
         {
             println!("\nplan limits [{}] from {} ({}):", l.account, l.source,
-                if l.live { "LIVE" } else { "cached" });
+                match (&l.reason, l.live) {
+                    (_, true) => "LIVE".to_string(),
+                    (Some(why), _) => format!("cached: {why}"),
+                    _ => "cached".to_string(),
+                });
             println!("  {} | {} | {}",
                 l.email.clone().unwrap_or_else(|| "?".into()),
                 l.plan.clone().unwrap_or_else(|| "?".into()),

@@ -79,6 +79,59 @@ pub struct Limits {
     /// cache Claude Code last wrote.
     pub live: bool,
     pub extra_usage: Option<ExtraUsage>,
+    /// Why the figures are cached rather than live, as a
+    /// [`live::Unavailable::code`] tag. `None` while they are live.
+    pub reason: Option<String>,
+}
+
+impl Limits {
+    /// Records why a live read did not happen. Ignored once figures are live.
+    fn because(mut self, why: live::Unavailable) -> Self {
+        if !self.live {
+            self.reason = Some(why.code().to_string());
+        }
+        self
+    }
+}
+
+/// Who an install is signed in as, as of now.
+///
+/// Read from `oauthAccount` rather than from the cache block. The cache records
+/// whoever was signed in when it was last written, which on a long-lived
+/// install can be a different account entirely - and a stale id there is enough
+/// to make one login look like two.
+struct Identity {
+    account: String,
+    email: Option<String>,
+    organization: Option<String>,
+    plan: Option<String>,
+}
+
+impl Identity {
+    fn of(file: &CacheFile) -> Self {
+        let uuid = file
+            .oauth_account
+            .as_ref()
+            .and_then(|a| a.account_uuid.clone())
+            .or_else(|| {
+                file.cached_usage_utilization
+                    .as_ref()
+                    .map(|c| c.account_uuid.clone())
+            })
+            .unwrap_or_default();
+        let oauth = file.oauth_account.as_ref();
+        Self {
+            account: uuid.chars().take(8).collect(),
+            email: oauth.and_then(|a| a.email_address.clone()),
+            organization: oauth.and_then(|a| a.organization_name.clone()),
+            plan: oauth.and_then(|a| {
+                a.user_rate_limit_tier
+                    .as_deref()
+                    .and_then(plan_name)
+                    .or_else(|| a.organization_type.as_deref().and_then(plan_name))
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -94,6 +147,10 @@ struct CacheFile {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OauthAccount {
+    /// Who the install is signed in as now, as opposed to whoever was signed in
+    /// when the cache block was last written.
+    #[serde(default)]
+    account_uuid: Option<String>,
     #[serde(default)]
     email_address: Option<String>,
     #[serde(default)]
@@ -202,25 +259,43 @@ fn from_roots(roots: &[DataRoot]) -> Vec<Limits> {
     let now_ms = Utc::now().timestamp_millis();
     let mut found: Vec<Limits> = roots
         .iter()
-        .filter_map(|root| {
-            let mut limits = cache_path(&root.projects_dir)
-                .and_then(|path| read(&path, &root.label))?;
-            // The cache only moves when `/usage` runs, so prefer a live read and
-            // keep the cached figures as the fallback.
-            if let Some(creds) = live::credentials_path(&root.projects_dir) {
-                if let Ok(fresh) = live::fetch(&creds, now_ms) {
-                    if let Some(refreshed) = meters_from(fresh) {
-                        limits.meters = refreshed;
-                        limits.fetched_at = Utc::now();
-                        limits.live = true;
-                    }
-                }
-            }
-            Some(limits)
-        })
+        .filter_map(|root| one_root(root, now_ms))
         .collect();
     freshest_per_account(&mut found);
     found
+}
+
+/// One install's figures: live where the credentials allow it, cached only
+/// where they do not.
+///
+/// The cache is a fallback, not a precondition. An install whose `.claude.json`
+/// has never held a `cachedUsageUtilization` - or holds one written months ago
+/// under a different account - still reports live figures, because the identity
+/// comes from `oauthAccount` and the meters from the API. Where the live read
+/// cannot happen, the reason travels with the cached figures so the UI can say
+/// what is actually wrong.
+fn one_root(root: &DataRoot, now_ms: i64) -> Option<Limits> {
+    let file = cache_path(&root.projects_dir).and_then(parse)?;
+    let identity = Identity::of(&file);
+    let cached = cached_limits(file.cached_usage_utilization, &identity, &root.label);
+
+    let Some(credentials) = live::credentials_path(&root.projects_dir) else {
+        return cached.map(|limits| limits.because(live::Unavailable::NoCredentials));
+    };
+    match live::fetch(&credentials, now_ms) {
+        Ok(fresh) => match live_limits(fresh, &identity, &root.label) {
+            // The request asks the endpoint to skip spend, so the credit state
+            // the tooltip shows can only have come from the cache.
+            Some(mut limits) => {
+                limits.extra_usage = limits
+                    .extra_usage
+                    .or_else(|| cached.and_then(|stale| stale.extra_usage));
+                Some(limits)
+            }
+            None => cached,
+        },
+        Err(why) => cached.map(|limits| limits.because(why)),
+    }
 }
 
 /// Orders caches freshest first and drops every repeat of an account.
@@ -248,41 +323,64 @@ fn cache_path(projects_dir: &Path) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-fn read(path: &Path, source: &str) -> Option<Limits> {
+fn parse(path: PathBuf) -> Option<CacheFile> {
     let text = std::fs::read_to_string(path).ok()?;
-    let file = serde_json::from_str::<CacheFile>(&text).ok()?;
-    let account = file.oauth_account;
-    let email = account.as_ref().and_then(|a| a.email_address.clone());
-    let organization = account.as_ref().and_then(|a| a.organization_name.clone());
-    let plan = account.as_ref().and_then(|a| {
-        a.user_rate_limit_tier
-            .as_deref()
-            .and_then(plan_name)
-            .or_else(|| a.organization_type.as_deref().and_then(plan_name))
-    });
-    let mut cached = file.cached_usage_utilization?;
+    serde_json::from_str::<CacheFile>(&text).ok()
+}
 
-    let extra_usage_raw = cached.utilization.extra_usage.take();
-    let spend_raw = cached.utilization.spend.take();
-    let meters = meters_from(cached.utilization)?;
-
-    let extra_usage = extra_usage_raw.map(|raw| ExtraUsage {
-        enabled: raw.is_enabled,
-        disabled_reason: raw.disabled_reason,
-        percent: spend_raw.and_then(|s| s.percent),
-    });
-
+/// The figures Claude Code last wrote, if it has written any.
+fn cached_limits(cached: Option<Cached>, identity: &Identity, source: &str) -> Option<Limits> {
+    let mut cached = cached?;
+    let extra_usage = extra_usage_of(&mut cached.utilization);
     Some(Limits {
-        meters,
+        meters: meters_from(cached.utilization)?,
         fetched_at: Utc.timestamp_millis_opt(cached.fetched_at_ms).single()?,
         source: source.to_string(),
-        account: cached.account_uuid.chars().take(8).collect(),
-        email,
-        organization,
-        plan,
+        account: identity.account.clone(),
+        email: identity.email.clone(),
+        organization: identity.organization.clone(),
+        plan: identity.plan.clone(),
         live: false,
         extra_usage,
+        reason: None,
     })
+}
+
+/// Figures straight from the API, owing nothing to the cache.
+fn live_limits(mut fresh: Utilization, identity: &Identity, source: &str) -> Option<Limits> {
+    let extra_usage = extra_usage_of(&mut fresh);
+    Some(Limits {
+        meters: meters_from(fresh)?,
+        fetched_at: Utc::now(),
+        source: source.to_string(),
+        account: identity.account.clone(),
+        email: identity.email.clone(),
+        organization: identity.organization.clone(),
+        plan: identity.plan.clone(),
+        live: true,
+        extra_usage,
+        reason: None,
+    })
+}
+
+/// Lifts the credit state out of a payload, cached or fresh, leaving the limits
+/// behind for [`meters_from`].
+fn extra_usage_of(utilization: &mut Utilization) -> Option<ExtraUsage> {
+    let raw = utilization.extra_usage.take();
+    let spend = utilization.spend.take();
+    raw.map(|raw| ExtraUsage {
+        enabled: raw.is_enabled,
+        disabled_reason: raw.disabled_reason,
+        percent: spend.and_then(|s| s.percent),
+    })
+}
+
+/// The cached figures alone, for tests that work from a file on disk.
+#[cfg(test)]
+fn read(path: &Path, source: &str) -> Option<Limits> {
+    let file = parse(path.to_path_buf())?;
+    let identity = Identity::of(&file);
+    cached_limits(file.cached_usage_utilization, &identity, source)
 }
 
 /// Turns a utilisation payload - cached or freshly fetched, they share a shape -
@@ -425,6 +523,52 @@ mod tests {
     }
 
     #[test]
+    fn identity_follows_the_current_login_not_the_cached_one() {
+        // A long-lived install keeps whatever account_uuid was current when the
+        // cache was last written. Trusting it made one login look like two.
+        let file: CacheFile = serde_json::from_str(
+            r#"{"oauthAccount":{"accountUuid":"c8abb3bc-eb26","emailAddress":"you@example.com",
+                "organizationName":"Acme","userRateLimitTier":"default_claude_max_5x"},
+                "cachedUsageUtilization":{"accountUuid":"9fb0e902-1b77","fetchedAtMs":1}}"#,
+        )
+        .unwrap();
+        let identity = Identity::of(&file);
+        assert_eq!(identity.account, "c8abb3bc");
+        assert_eq!(identity.email.as_deref(), Some("you@example.com"));
+        assert_eq!(identity.plan.as_deref(), Some("Max 5x"));
+    }
+
+    #[test]
+    fn identity_falls_back_to_the_cached_account_when_there_is_no_oauth_block() {
+        let file: CacheFile =
+            serde_json::from_str(r#"{"cachedUsageUtilization":{"accountUuid":"9fb0e902-1b77"}}"#)
+                .unwrap();
+        assert_eq!(Identity::of(&file).account, "9fb0e902");
+        assert!(Identity::of(&file).email.is_none());
+    }
+
+    #[test]
+    fn a_reason_is_recorded_for_cached_figures_only() {
+        let base = Limits {
+            meters: vec![],
+            fetched_at: Utc.timestamp_millis_opt(0).single().unwrap(),
+            source: "Windows".into(),
+            account: "c8abb3bc".into(),
+            email: None,
+            organization: None,
+            plan: None,
+            live: false,
+            extra_usage: None,
+            reason: None,
+        };
+        let cached = base.clone().because(live::Unavailable::Expired);
+        assert_eq!(cached.reason.as_deref(), Some("expired"));
+        // Live figures owe nothing to a failed read elsewhere.
+        let live = Limits { live: true, ..base }.because(live::Unavailable::RateLimited);
+        assert!(live.reason.is_none());
+    }
+
+    #[test]
     fn plan_tier_reads_as_a_plan_name() {
         assert_eq!(plan_name("default_claude_max_5x").as_deref(), Some("Max 5x"));
         assert_eq!(plan_name("claude_pro").as_deref(), Some("Pro"));
@@ -446,6 +590,7 @@ mod tests {
             plan: None,
             live: false,
             extra_usage: None,
+            reason: None,
         };
         let mut found = vec![make("aaa", 100), make("bbb", 300), make("aaa", 500)];
         freshest_per_account(&mut found);
@@ -468,6 +613,7 @@ mod tests {
             plan: None,
             live: ms == 500,
             extra_usage: None,
+            reason: None,
         };
         let mut found = vec![
             make("9fb0e902", Some("a@example.com"), 500),

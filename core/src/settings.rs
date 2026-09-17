@@ -47,8 +47,9 @@ pub struct Settings {
     pub provenance: bool,
     /// The marker showing how far through the window the clock has got.
     pub pace: bool,
-    /// Short id of the account whose meters to show. `None` follows whichever
-    /// cache is freshest, which is also the fallback if the id disappears.
+    /// Which account's meters to show, by signed-in email - or, in files
+    /// written by older versions, by short account id. `None` follows whichever
+    /// reading is freshest, which is also the fallback if the account is gone.
     pub account: Option<String>,
     /// Seconds between automatic refreshes; `0` means manual only.
     pub refresh_seconds: u32,
