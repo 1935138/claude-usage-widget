@@ -225,10 +225,6 @@ body {
   letter-spacing: 0.04em;
   color: var(--text-secondary);
 }
-.note.stale {
-  color: var(--text-secondary);
-}
-
 .section { margin-top: 16px; }
 .section-title { display: block; margin-bottom: 8px; }
 
@@ -283,17 +279,34 @@ body {
   min-width: 2px;
 }
 
-.clock {
+/* Both halves are times, so they share one line: where the figures came from
+   on the left, the clock on the right. */
+.footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 12px;
   border-top: 1px solid var(--edge);
   font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
   color: var(--text-muted);
 }
-.clock[data-align="left"] { text-align: left; }
-.clock[data-align="center"] { text-align: center; }
-.clock[data-align="right"] { text-align: right; }
+/* The note can run long - a cached reading names its reason - so it gives way
+   rather than pushing the clock off the card. The full text is in the tooltip. */
+.footer-note {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.footer-note.stale {
+  color: var(--text-secondary);
+}
+.footer-clock {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
 
 .opt-row {
   display: flex;

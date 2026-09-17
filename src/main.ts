@@ -45,12 +45,15 @@ interface Settings {
   cornerRadius: number;
 }
 
-/** Where the clock sits, matching `CLOCK_POSITIONS` in the settings crate. */
+/**
+ * Whether the clock is on the card. The footer's shape is fixed - where the
+ * figures came from on the left, the clock on the right - so position is no
+ * longer a choice; the stored value stays one of `CLOCK_POSITIONS` so that
+ * files written by older versions still read.
+ */
 const CLOCK_CHOICES: ReadonlyArray<[string, string]> = [
+  ["right", "Shown"],
   ["off", "Hidden"],
-  ["left", "Bottom left"],
-  ["center", "Bottom centre"],
-  ["right", "Bottom right"],
 ];
 
 /**
@@ -274,7 +277,7 @@ const REASONS: Record<string, string> = {
   noCredentials: "not signed in here",
 };
 
-function provenance(limits: Limits): string {
+function provenance(limits: Limits): { text: string; detail: string; stale: boolean } {
   const at = new Date(limits.fetchedAt);
   const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const stale = !limits.live && Date.now() - at.getTime() > STALE_MS;
@@ -291,7 +294,7 @@ function provenance(limits: Limits): string {
   const detail = [limits.source, `account ${limits.account}`, extraUsagePhrase(limits.extraUsage)]
     .filter(Boolean)
     .join(" · ");
-  return `<p class="note${stale ? " stale" : ""}" title="${esc(detail)}">${esc(prefix)} · ${esc(when)}${esc(hint)}</p>`;
+  return { text: `${prefix} · ${when}${hint}`, detail, stale };
 }
 
 /**
@@ -337,8 +340,7 @@ function render(all: Limits[], s: Settings, login: LoginState): string {
 
   return `
     ${accountPicker(all, limits)}
-    ${bars || `<p class="note">Nothing selected. Use the sliders to turn a meter back on.</p>`}
-    ${s.provenance ? provenance(limits) : ""}`;
+    ${bars || `<p class="note">Nothing selected. Use the sliders to turn a meter back on.</p>`}`;
 }
 
 /** The boolean switches, as distinct from the account and interval settings. */
@@ -399,6 +401,8 @@ function renderSettings(s: Settings): string {
 
 const bodyEl = document.getElementById("body")!;
 const contentEl = document.getElementById("content")!;
+const footerEl = document.getElementById("footer")!;
+const noteEl = document.getElementById("provenance")!;
 const clockEl = document.getElementById("clock")!;
 
 /**
@@ -411,10 +415,19 @@ function applyCornerRadius(): void {
   document.documentElement.style.setProperty("--corner-radius", `${settings.cornerRadius}px`);
 }
 
-/** Applies the clock's position, or takes it off the card entirely. */
-function applyClockPosition(): void {
+/**
+ * Fills the footer: where the figures came from on the left, the clock on the
+ * right. The row goes altogether when it would carry neither.
+ */
+function applyFooter(): void {
+  const limits = showingSettings ? undefined : chosen(accounts, settings);
+  const note = limits && settings.provenance ? provenance(limits) : undefined;
+  noteEl.textContent = note?.text ?? "";
+  noteEl.title = note?.detail ?? "";
+  noteEl.classList.toggle("stale", note?.stale ?? false);
+
   clockEl.hidden = settings.clock === "off";
-  clockEl.dataset.align = settings.clock;
+  footerEl.hidden = clockEl.hidden && !note;
 }
 
 function tick(): void {
@@ -450,7 +463,7 @@ async function fitWindow(): Promise<void> {
     (bar?.offsetHeight ?? 0) +
     contentEl.offsetHeight +
     padding +
-    clockEl.offsetHeight +
+    footerEl.offsetHeight +
     CARD_BORDERS;
 
   if (!Number.isFinite(height) || Math.abs(height - lastFitted) < FIT_EPSILON) {
@@ -492,6 +505,7 @@ async function draw(): Promise<void> {
   contentEl.innerHTML = showingSettings
     ? renderSettings(settings)
     : render(accounts, settings, login);
+  applyFooter();
   await fitWindow();
 }
 
@@ -588,8 +602,8 @@ contentEl.addEventListener("change", (event) => {
   if (target instanceof HTMLSelectElement && target.id === "clock-position") {
     settings.clock = target.value;
     persist();
-    applyClockPosition();
-    // Showing or hiding the clock changes how tall the card is.
+    applyFooter();
+    // Showing or hiding the footer changes how tall the card is.
     void fitWindow();
     return;
   }
@@ -624,7 +638,7 @@ void (async () => {
     // Keep the defaults; everything stays visible.
   }
   applyCornerRadius();
-  applyClockPosition();
+  applyFooter();
   scheduleRefresh();
   await load();
 })();

@@ -65,7 +65,7 @@ the settings panel:
 | Cache & credits info | on / off |
 | Pace marker | on / off |
 | Refresh every | manual, 3m – 1h (default 5m) |
-| Clock | hidden, bottom left / centre / right |
+| Clock | shown / hidden |
 | Corners | square, slight, rounded (default), very rounded |
 
 Settings are stored as `settings.json` in the app's config directory and can be
