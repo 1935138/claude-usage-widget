@@ -134,9 +134,10 @@ npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
 ### 점검
 
 ```sh
-cargo test -p claude-usage-core
+cargo test --workspace
 cargo run -p claude-usage-core --bin probe           # 위젯이 보여줄 내용
 cargo run -p claude-usage-core --bin probe -- --json # UI가 받는 그대로
+npm test                                             # 순수 함수 테스트
 npm run build                                        # 타입, 번들, CSS 검사
 ```
 

@@ -67,14 +67,6 @@ export function extraUsagePhrase(extra: ExtraUsage | null): string {
     : "extra usage off";
 }
 
-/**
- * Where the figures came from and when.
- *
- * A live read is current. A cached one can be days behind, because Claude Code
- * only rewrites its cache when `/usage` runs, so that line says what to do
- * about it rather than turning red: text wears text colours, and an alarm
- * colour here read as a failure.
- */
 /** Why a reading is cached, in the few words the note line has room for. */
 export const REASONS: Record<string, string> = {
   expired: "sign-in expired",
@@ -83,6 +75,14 @@ export const REASONS: Record<string, string> = {
   noCredentials: "not signed in here",
 };
 
+/**
+ * Where the figures came from and when.
+ *
+ * A live read is current. A cached one can be days behind, because Claude Code
+ * only rewrites its cache when `/usage` runs, so that line says what to do
+ * about it rather than turning red: text wears text colours, and an alarm
+ * colour here read as a failure.
+ */
 export function provenance(
   limits: Limits,
   format: string,

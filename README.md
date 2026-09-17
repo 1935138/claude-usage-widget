@@ -137,9 +137,10 @@ npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
 ### Checks
 
 ```sh
-cargo test -p claude-usage-core
+cargo test --workspace
 cargo run -p claude-usage-core --bin probe           # what the widget would show
 cargo run -p claude-usage-core --bin probe -- --json # exactly what the UI receives
+npm test                                             # the pure frontend functions
 npm run build                                        # types, bundle, CSS check
 ```
 
