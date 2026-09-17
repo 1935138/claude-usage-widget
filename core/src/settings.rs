@@ -6,9 +6,11 @@
 use serde::{Deserialize, Serialize};
 
 /// Refresh intervals outside this range are clamped. The floor keeps a
-/// hand-edited settings file from hammering the API, which does rate-limit;
-/// the ceiling keeps an absent-minded one from looking broken.
-pub const MIN_REFRESH_SECONDS: u32 = 60;
+/// hand-edited settings file from hammering the usage endpoint, which rate
+/// limits hard and stays refused for hours once it does; three minutes is the
+/// interval tools that read it report as sustainable. The ceiling keeps an
+/// absent-minded file from looking broken.
+pub const MIN_REFRESH_SECONDS: u32 = 180;
 pub const MAX_REFRESH_SECONDS: u32 = 3600;
 /// Five minutes. The endpoint returns 429 under repeated polling, and the
 /// shortest window being tracked is five hours, so there is nothing to gain
