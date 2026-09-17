@@ -64,7 +64,7 @@ the settings panel:
 | Meters | current session, weekly limits |
 | Cache & credits info | on / off |
 | Pace marker | on / off |
-| Refresh every | manual, 1m – 1h (default 5m) |
+| Refresh every | manual, 3m – 1h (default 5m) |
 | Clock | hidden, bottom left / centre / right |
 | Corners | square, slight, rounded (default), very rounded |
 
