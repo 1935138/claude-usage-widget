@@ -257,9 +257,31 @@ function provenance(limits: Limits): string {
   return `<p class="note${stale ? " stale" : ""}" title="${esc(detail)}">${esc(prefix)} · ${esc(when)}${esc(hint)}</p>`;
 }
 
-function render(all: Limits[], s: Settings): string {
+/**
+ * Whether this machine has a Claude Code login: `needed` when none was found,
+ * `waiting` while a `claude login` this widget started is still running.
+ */
+type LoginState = "ok" | "needed" | "waiting";
+
+/** Centred prompt shown when this machine has never run `claude login`. */
+function loginRequired(state: LoginState): string {
+  const waiting = state === "waiting";
+  const note = waiting
+    ? "Complete the sign-in in the console window."
+    : "No Claude Code login found on this machine.";
+  return `<div class="login-panel">
+      <p class="note">${note}</p>
+      <button id="login" class="login-btn" type="button"${waiting ? " disabled" : ""}>${
+        waiting ? "Waiting for sign-in…" : "Login Required"
+      }</button>
+    </div>`;
+}
+
+function render(all: Limits[], s: Settings, login: LoginState): string {
   if (all.length === 0) {
-    return `<p class="note">No cached usage found. Run Claude Code once to populate it.</p>`;
+    return login === "ok"
+      ? `<p class="note">No cached usage found. Run Claude Code once to populate it.</p>`
+      : loginRequired(login);
   }
   const limits = chosen(all, s)!;
   const meters = limits.meters.filter((m) => wanted(m, s));
@@ -391,6 +413,7 @@ let settings: Settings = {
 };
 let showingSettings = false;
 let accounts: Limits[] = [];
+let login: LoginState = "ok";
 /**
  * The last live answer per account.
  *
@@ -402,7 +425,9 @@ let accounts: Limits[] = [];
 const lastLive = new Map<string, Limits>();
 
 async function draw(): Promise<void> {
-  contentEl.innerHTML = showingSettings ? renderSettings(settings) : render(accounts, settings);
+  contentEl.innerHTML = showingSettings
+    ? renderSettings(settings)
+    : render(accounts, settings, login);
   await fitWindow();
 }
 
@@ -428,12 +453,52 @@ async function load(): Promise<void> {
       if (one.live) lastLive.set(one.account, one);
     }
     accounts = fetched.map((one) => (one.live ? one : (lastLive.get(one.account) ?? one)));
+    // Only worth asking when there is nothing else to show. A sign-in already
+    // under way keeps its state until it lands, so the prompt does not flip
+    // back while the console window is still open.
+    const missing = accounts.length === 0 && (await invoke<boolean>("needs_login"));
+    login = missing ? (login === "waiting" ? "waiting" : "needed") : "ok";
   } catch (err) {
     contentEl.innerHTML = `<p class="note">Could not read usage: ${esc(String(err))}</p>`;
     await fitWindow();
     return;
   }
   await draw();
+}
+
+/** How long to keep watching for a sign-in to land, and how often to look. */
+const LOGIN_POLL_MS = 3000;
+const LOGIN_POLL_LIMIT = 60;
+
+/**
+ * Starts `claude login` and watches for it to finish.
+ *
+ * The sign-in runs in a console of its own, so nothing tells the widget when it
+ * lands - it is polled for a few minutes rather than left until the next
+ * refresh, which can be five minutes away.
+ */
+async function startLogin(): Promise<void> {
+  try {
+    await invoke("login");
+  } catch {
+    return;
+  }
+  login = "waiting";
+  await draw();
+  let left = LOGIN_POLL_LIMIT;
+  const poll = setInterval(() => {
+    if (login !== "waiting") {
+      clearInterval(poll);
+      return;
+    }
+    if (left-- <= 0) {
+      clearInterval(poll);
+      login = "needed";
+      void draw();
+      return;
+    }
+    void load();
+  }, LOGIN_POLL_MS);
 }
 
 contentEl.addEventListener("change", (event) => {
@@ -473,6 +538,10 @@ document.getElementById("settings")!.addEventListener("click", () => {
   void draw();
 });
 document.getElementById("refresh")!.addEventListener("click", () => void load());
+contentEl.addEventListener("click", (event) => {
+  if (!(event.target instanceof HTMLElement) || event.target.id !== "login") return;
+  void startLogin();
+});
 document.getElementById("close")!.addEventListener("click", () => void getCurrentWindow().close());
 
 tick();

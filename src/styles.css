@@ -319,3 +319,33 @@ body {
   color: var(--text-muted);
 }
 
+/* Shown centred in place of the meters when this machine has no login yet. */
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  text-align: center;
+}
+.login-btn {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--cat-1);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.login-btn:hover {
+  filter: brightness(1.08);
+}
+.login-btn:disabled {
+  background: var(--track);
+  color: var(--text-muted);
+  cursor: default;
+  filter: none;
+}
+
