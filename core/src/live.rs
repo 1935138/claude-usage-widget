@@ -58,6 +58,19 @@ pub enum Unavailable {
     RateLimited,
 }
 
+impl Unavailable {
+    /// Short tag for the UI, so it can say why figures are cached instead of
+    /// always telling the user to run `/usage`. Carries no token material.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::NoCredentials => "noCredentials",
+            Self::Expired => "expired",
+            Self::RequestFailed => "requestFailed",
+            Self::RateLimited => "rateLimited",
+        }
+    }
+}
+
 /// `.credentials.json` sits inside the config directory, next to `projects`.
 pub fn credentials_path(projects_dir: &Path) -> Option<PathBuf> {
     let candidate = projects_dir.parent()?.join(".credentials.json");
@@ -205,6 +218,19 @@ mod tests {
         begin_backoff(0);
         clear_backoff();
         assert!(!backing_off(0));
+    }
+
+    #[test]
+    fn every_reason_has_a_tag_for_the_ui() {
+        for why in [
+            Unavailable::NoCredentials,
+            Unavailable::Expired,
+            Unavailable::RequestFailed,
+            Unavailable::RateLimited,
+        ] {
+            assert!(!why.code().is_empty());
+        }
+        assert_eq!(Unavailable::Expired.code(), "expired");
     }
 
     #[test]
