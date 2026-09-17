@@ -338,6 +338,14 @@ body {
 .card.loading {
   background: transparent;
   border-color: transparent;
+  /* The window has a minimum height that the icon alone does not reach, so the
+     card fills it and centres the icon rather than pinning it to the top. */
+  height: 100vh;
+}
+.card.loading .body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .card.loading .bar,
 .card.loading .footer {
