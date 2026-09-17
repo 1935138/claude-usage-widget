@@ -17,6 +17,7 @@ const CARD_BORDERS = 2;
 /** Ignore sub-pixel differences so a refresh does not jiggle the window. */
 const FIT_EPSILON = 2;
 
+const cardEl = document.getElementById("card")!;
 const bodyEl = document.getElementById("body")!;
 const contentEl = document.getElementById("content")!;
 const footerEl = document.getElementById("footer")!;
@@ -35,6 +36,9 @@ function applyLanguage(): void {
   document.getElementById("settings")!.title = t.settings;
   document.getElementById("refresh")!.title = t.refresh;
   document.getElementById("close")!.title = t.close;
+  // The splash carries no words of its own; this is what a screen reader reads
+  // while the first reading is on its way.
+  document.querySelector<HTMLImageElement>(".splash img")?.setAttribute("alt", t.loading);
 }
 
 /**
@@ -123,6 +127,12 @@ let settings: Settings = {
 };
 /** The words the card is written in, settled once the settings have loaded. */
 let t: Strings = strings(resolveLang("system"));
+/**
+ * Until the first reading is in there is nothing to draw, and a card drawn
+ * around nothing says the wrong thing: it would read as "no usage found"
+ * rather than "not asked yet".
+ */
+let loading = true;
 let showingSettings = false;
 /** Filled in at startup; the footer shows it while the settings panel is open. */
 let version = "";
@@ -138,10 +148,18 @@ let login: LoginState = "ok";
  */
 const lastLive = new Map<string, Limits>();
 
+/** The icon, alone on a transparent window, until there is something to show. */
+function splash(): string {
+  return `<div class="splash"><img src="/avatar.png" alt="${esc(t.loading)}" width="48" height="48" /></div>`;
+}
+
 async function draw(): Promise<void> {
-  contentEl.innerHTML = showingSettings
-    ? renderSettings(settings, t)
-    : render(accounts, settings, login, t);
+  cardEl.classList.toggle("loading", loading);
+  contentEl.innerHTML = loading
+    ? splash()
+    : showingSettings
+      ? renderSettings(settings, t)
+      : render(accounts, settings, login, t);
   applyFooter();
   await fitWindow();
 }
@@ -174,10 +192,13 @@ async function load(): Promise<void> {
     const missing = accounts.length === 0 && (await invoke<boolean>("needs_login"));
     login = missing ? (login === "waiting" ? "waiting" : "needed") : "ok";
   } catch (err) {
+    loading = false;
+    cardEl.classList.remove("loading");
     contentEl.innerHTML = `<p class="note">${esc(t.readError(String(err)))}</p>`;
     await fitWindow();
     return;
   }
+  loading = false;
   await draw();
 }
 
@@ -293,9 +314,6 @@ void (async () => {
     .then((v) => `v${v}`)
     .catch(() => "");
   applyLanguage();
-  // The markup's placeholder is English; replace it before the first read so a
-  // Korean card does not flash it.
-  contentEl.innerHTML = `<p class="note">${esc(t.loading)}</p>`;
   applyCornerRadius();
   applyFooter();
   // Draw before reading anything: this is what asks the backend to show the

@@ -332,6 +332,29 @@ body {
   color: var(--text-muted);
 }
 
+/* Until the first reading lands there is nothing worth framing, so the card
+   gets out of the way. The window is transparent, so what is left on screen is
+   the icon alone. */
+.card.loading {
+  background: transparent;
+  border-color: transparent;
+}
+.card.loading .bar,
+.card.loading .footer {
+  display: none;
+}
+
+.splash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 0;
+}
+.splash img {
+  border-radius: 6px;
+  opacity: 0.85;
+}
+
 /* Shown centred in place of the meters when this machine has no login yet. */
 .login-panel {
   display: flex;
