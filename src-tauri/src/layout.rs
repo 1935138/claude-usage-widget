@@ -89,10 +89,22 @@ pub fn fit<R: Runtime>(window: &WebviewWindow<R>, content_height: f64) -> tauri:
 
     let (max_width, max_height) = area.max_size();
     let width = clamp(PREFERRED_WIDTH, MIN_WIDTH, max_width);
-    let height = clamp(content_height.ceil(), MIN_HEIGHT, max_height);
+    let height = clamp(fitted_height(content_height), MIN_HEIGHT, max_height);
 
     window.set_size(LogicalSize::new(width, height))?;
     reposition(window, &area, width, height)
+}
+
+/// The height to ask for, given what the page measured.
+///
+/// One logical pixel more than measured. The window is sized in whole device
+/// pixels, so a height that is exact in CSS pixels can land a fraction short of
+/// what the page laid out - at 125% scaling the client area came back 1px
+/// shorter than the card, which clipped the card's bottom border off the screen.
+/// The card is `height: 100vh`, so the slack is absorbed rather than left as a
+/// gap.
+fn fitted_height(content_height: f64) -> f64 {
+    (content_height + 1.0).ceil()
 }
 
 /// Places the window at the top-right of its work area at a provisional height,
@@ -154,6 +166,14 @@ mod tests {
         assert_eq!(clamp(500.0, 16.0, 300.0), 300.0);
         assert_eq!(clamp(-40.0, 16.0, 300.0), 16.0);
         assert_eq!(clamp(120.0, 16.0, 300.0), 120.0);
+    }
+
+    #[test]
+    fn the_fitted_height_leaves_room_for_the_bottom_border() {
+        // Whole device pixels are what the window is actually sized in, so a
+        // measurement that is exact in CSS pixels still has to round up.
+        assert_eq!(fitted_height(305.6), 307.0);
+        assert_eq!(fitted_height(304.0), 305.0);
     }
 
     #[test]
