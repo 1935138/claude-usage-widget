@@ -75,5 +75,11 @@ pub fn save_settings(
 /// clamping against the display's work area happens here.
 #[tauri::command]
 pub fn fit_to_content(window: tauri::WebviewWindow, height: f64) -> Result<(), String> {
-    layout::fit(&window, height).map_err(|e| e.to_string())
+    layout::fit(&window, height).map_err(|e| e.to_string())?;
+    // The page measures itself as soon as it has drawn, so this is also the
+    // first moment the window is worth looking at.
+    if !window.is_visible().unwrap_or(true) {
+        window.show().map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }

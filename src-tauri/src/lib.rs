@@ -8,15 +8,32 @@ pub use claude_usage_core::limits;
 
 use tauri::Manager;
 
+/// How long to wait for the page before showing the window regardless.
+///
+/// The page asks to be shown as soon as it has drawn. If it never manages to -
+/// a broken bundle, a webview that failed to start - a window that never
+/// appears is worse than one that appears empty.
+const SHOW_ANYWAY_AFTER: std::time::Duration = std::time::Duration::from_secs(3);
+
+fn show_eventually(window: tauri::WebviewWindow) {
+    std::thread::spawn(move || {
+        std::thread::sleep(SHOW_ANYWAY_AFTER);
+        if !window.is_visible().unwrap_or(true) {
+            let _ = window.show();
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                // Give the window a sane size and corner before it is shown,
-                // so it does not flash at the config's placeholder geometry.
+                // Sized and placed while still hidden. The page shows it once it
+                // has drawn, so nobody sees it at the config's placeholder
+                // geometry or wearing the stylesheet's default corners.
                 let _ = layout::place_initial(&window);
-                let _ = window.show();
+                show_eventually(window);
             }
             Ok(())
         })

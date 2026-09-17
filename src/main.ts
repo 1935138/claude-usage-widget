@@ -298,6 +298,9 @@ void (async () => {
   contentEl.innerHTML = `<p class="note">${esc(t.loading)}</p>`;
   applyCornerRadius();
   applyFooter();
+  // Draw before reading anything: this is what asks the backend to show the
+  // window, and a live read can take seconds.
+  await draw();
   scheduleRefresh();
   await load();
 })();
