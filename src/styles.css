@@ -85,7 +85,8 @@ body {
   flex-direction: column;
   background: var(--surface-1);
   border: 1px solid var(--edge);
-  border-radius: 12px;
+  /* Set from settings; the fallback is the radius the card was designed around. */
+  border-radius: var(--corner-radius, 12px);
   overflow: hidden;
 }
 

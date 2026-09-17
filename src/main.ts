@@ -41,6 +41,7 @@ interface Settings {
   account: string | null;
   refreshSeconds: number;
   clock: string;
+  cornerRadius: number;
 }
 
 /** Where the clock sits, matching `CLOCK_POSITIONS` in the settings crate. */
@@ -49,6 +50,18 @@ const CLOCK_CHOICES: ReadonlyArray<[string, string]> = [
   ["left", "Bottom left"],
   ["center", "Bottom centre"],
   ["right", "Bottom right"],
+];
+
+/**
+ * Offered corner radii, in CSS pixels. A hand-edited `settings.json` may name
+ * any value up to `MAX_CORNER_RADIUS`; one that is not on this list is added to
+ * the menu rather than silently snapped to a neighbour.
+ */
+const CORNER_CHOICES: ReadonlyArray<[number, string]> = [
+  [0, "Square"],
+  [6, "Slight"],
+  [12, "Rounded"],
+  [20, "Very rounded"],
 ];
 
 /** Offered refresh intervals, in seconds; 0 polls only on demand. */
@@ -326,6 +339,18 @@ function renderSettings(s: Settings): string {
     ([value, label]) =>
       `<option value="${esc(value)}"${value === s.clock ? " selected" : ""}>${esc(label)}</option>`,
   ).join("");
+  const custom: [number, string] = [s.cornerRadius, `${s.cornerRadius}px`];
+  const radii: ReadonlyArray<[number, string]> = CORNER_CHOICES.some(
+    ([px]) => px === s.cornerRadius,
+  )
+    ? CORNER_CHOICES
+    : [...CORNER_CHOICES, custom].sort((a, b) => a[0] - b[0]);
+  const corners = radii
+    .map(
+      ([px, label]) =>
+        `<option value="${px}"${px === s.cornerRadius ? " selected" : ""}>${esc(label)}</option>`,
+    )
+    .join("");
   const options = REFRESH_CHOICES.map(
     ([seconds, label]) =>
       `<option value="${seconds}"${seconds === s.refreshSeconds ? " selected" : ""}>${esc(label)}</option>`,
@@ -341,12 +366,26 @@ function renderSettings(s: Settings): string {
         <span>Clock</span>
         <select id="clock-position">${clocks}</select>
       </div>
+      <div class="opt-row">
+        <span>Corners</span>
+        <select id="corner-radius" title="How rounded the card's corners are; the window has no frame of its own">${corners}</select>
+      </div>
     </section>`;
 }
 
 const bodyEl = document.getElementById("body")!;
 const contentEl = document.getElementById("content")!;
 const clockEl = document.getElementById("clock")!;
+
+/**
+ * Applies the card's corner radius.
+ *
+ * Set as a custom property rather than on the element, so the stylesheet keeps
+ * the whole of the card's shape in one place.
+ */
+function applyCornerRadius(): void {
+  document.documentElement.style.setProperty("--corner-radius", `${settings.cornerRadius}px`);
+}
 
 /** Applies the clock's position, or takes it off the card entirely. */
 function applyClockPosition(): void {
@@ -410,6 +449,7 @@ let settings: Settings = {
   account: null,
   refreshSeconds: 300,
   clock: "right",
+  cornerRadius: 12,
 };
 let showingSettings = false;
 let accounts: Limits[] = [];
@@ -515,6 +555,12 @@ contentEl.addEventListener("change", (event) => {
     scheduleRefresh();
     return;
   }
+  if (target instanceof HTMLSelectElement && target.id === "corner-radius") {
+    settings.cornerRadius = Number(target.value);
+    persist();
+    applyCornerRadius();
+    return;
+  }
   if (target instanceof HTMLSelectElement && target.id === "clock-position") {
     settings.clock = target.value;
     persist();
@@ -553,6 +599,7 @@ void (async () => {
   } catch {
     // Keep the defaults; everything stays visible.
   }
+  applyCornerRadius();
   applyClockPosition();
   scheduleRefresh();
   await load();

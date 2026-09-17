@@ -23,6 +23,14 @@ pub const DEFAULT_REFRESH_SECONDS: u32 = 300;
 pub const CLOCK_POSITIONS: [&str; 4] = ["off", "left", "center", "right"];
 pub const DEFAULT_CLOCK: &str = "right";
 
+/// Corner radius of the card, in CSS pixels. Any value up to the ceiling is
+/// honoured so a hand-edited file can pick one the panel does not offer; past
+/// it the curve starts eating the title bar's own corners, so it is clamped
+/// rather than refused.
+pub const MAX_CORNER_RADIUS: u32 = 24;
+/// Matches the radius the card was designed around.
+pub const DEFAULT_CORNER_RADIUS: u32 = 12;
+
 /// Which parts of the widget are shown.
 ///
 /// `#[serde(default)]` on the container fills any missing field from [`Default`]
@@ -46,6 +54,10 @@ pub struct Settings {
     pub refresh_seconds: u32,
     /// One of [`CLOCK_POSITIONS`].
     pub clock: String,
+    /// How rounded the card's corners are, in CSS pixels; `0` is square. The
+    /// window itself is undecorated and transparent, so this is the whole of
+    /// the widget's outline - Windows draws no frame to round.
+    pub corner_radius: u32,
 }
 
 impl Settings {
@@ -70,6 +82,7 @@ impl Settings {
         if !CLOCK_POSITIONS.contains(&self.clock.as_str()) {
             self.clock = DEFAULT_CLOCK.to_string();
         }
+        self.corner_radius = self.corner_radius.min(MAX_CORNER_RADIUS);
         self
     }
 }
@@ -84,6 +97,7 @@ impl Default for Settings {
             account: None,
             refresh_seconds: DEFAULT_REFRESH_SECONDS,
             clock: DEFAULT_CLOCK.to_string(),
+            corner_radius: DEFAULT_CORNER_RADIUS,
         }
     }
 }
@@ -155,6 +169,24 @@ mod tests {
             let s = Settings { clock: position.to_string(), ..Default::default() }.normalized();
             assert_eq!(s.clock, position);
         }
+    }
+
+    #[test]
+    fn a_corner_radius_absent_from_an_older_file_takes_the_default() {
+        let s: Settings = serde_json::from_str(r#"{"session":false}"#).unwrap();
+        assert_eq!(s.corner_radius, DEFAULT_CORNER_RADIUS);
+    }
+
+    #[test]
+    fn a_hand_edited_corner_radius_is_kept_unless_it_is_absurd() {
+        // Anything inside the range is honoured, including values the panel
+        // does not offer; square corners are a choice, not an unset field.
+        let odd = Settings { corner_radius: 7, ..Default::default() }.normalized();
+        assert_eq!(odd.corner_radius, 7);
+        let square = Settings { corner_radius: 0, ..Default::default() }.normalized();
+        assert_eq!(square.corner_radius, 0);
+        let blob = Settings { corner_radius: 999, ..Default::default() }.normalized();
+        assert_eq!(blob.corner_radius, MAX_CORNER_RADIUS);
     }
 
     #[test]
