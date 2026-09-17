@@ -91,6 +91,15 @@ credentials shows live figures even if `/usage` has never run on it. When the
 figures are cached, the widget says why rather than leaving you to guess: the
 sign-in expired, the API is rate-limiting, or it did not answer.
 
+The request identifies itself as `claude-code/<version>`, which is what the CLI
+sends. The endpoint keeps two rate limits and picks between them on that header
+alone: with it, a few requests an hour are fine; without it, a handful earns
+hours of `429`s, answered with `Retry-After: 0` so there is no telling when they
+lift. The widget is reading the same endpoint, for the same account, with the
+token Claude Code itself put on disk, so it introduces itself as the client it
+stands in for. It refreshes every five minutes by default and never faster than
+every three.
+
 This endpoint is not a documented or supported API. If it changes, the widget
 falls back to cached figures.
 
