@@ -41,9 +41,16 @@ and any per-model weekly limit, each with the time it resets.
 
 ## Install
 
-Download the installer for your architecture from
-[Releases](../../releases) and run it. Windows 11 already has the WebView2
-runtime; on Windows 10 the installer will fetch it if needed.
+Download the installer for your architecture and run it.
+
+| File | For |
+| --- | --- |
+| [claude-usage-widget_0.1.1_x64-setup.exe](../../releases/download/v0.1.1/claude-usage-widget_0.1.1_x64-setup.exe) | 64-bit Windows (almost everyone) |
+| [claude-usage-widget_0.1.1_x86-setup.exe](../../releases/download/v0.1.1/claude-usage-widget_0.1.1_x86-setup.exe) | 32-bit Windows |
+
+Windows 11 already has the WebView2 runtime; on Windows 10 the installer will
+fetch it if needed. See [Releases](../../releases) for older versions and
+`SHA256SUMS`.
 
 ## Settings
 
