@@ -30,6 +30,7 @@ interface Limits {
   plan: string | null;
   live: boolean;
   extraUsage: ExtraUsage | null;
+  reason: string | null;
 }
 
 /** Mirrors `claude_usage_core::settings::Settings`. */
@@ -201,8 +202,21 @@ const wanted = (m: Meter, s: Settings): boolean =>
   m.kind === "session" ? s.session : s.weekly;
 
 /** The account whose meters are shown: the chosen one, else the freshest. */
+/**
+ * What makes two readings the same account, matching the backend's own rule.
+ *
+ * The short account id is not it: one login can be recorded under a different
+ * `account_uuid` by each install, so keying on it loses track of an account the
+ * moment a different install's reading wins.
+ */
+const identity = (l: Limits): string => l.email ?? l.account;
+
 function chosen(all: Limits[], s: Settings): Limits | undefined {
-  return all.find((l) => l.account === s.account) ?? all[0];
+  // `account` held a short account id before it held an email; a stored one of
+  // either kind still picks its account out.
+  return (
+    all.find((l) => identity(l) === s.account) ?? all.find((l) => l.account === s.account) ?? all[0]
+  );
 }
 
 /** The email, or the account id for a cache that recorded none. */
@@ -221,7 +235,7 @@ function accountPicker(all: Limits[], current: Limits): string {
       : `<select id="account" class="picker" title="Quota is per account; these installs are signed in as different ones">${all
           .map(
             (l) =>
-              `<option value="${esc(l.account)}"${l.account === current.account ? " selected" : ""}>${esc(accountName(l))}${l.live ? "" : " (cached)"}</option>`,
+              `<option value="${esc(identity(l))}"${identity(l) === identity(current) ? " selected" : ""}>${esc(accountName(l))}${l.live ? "" : " (cached)"}</option>`,
           )
           .join("")}</select>`;
 
@@ -253,6 +267,14 @@ function extraUsagePhrase(extra: ExtraUsage | null): string {
  * about it rather than turning red: text wears text colours, and an alarm
  * colour here read as a failure.
  */
+/** Why a reading is cached, in the few words the note line has room for. */
+const REASONS: Record<string, string> = {
+  expired: "sign-in expired",
+  rateLimited: "API is rate-limiting",
+  requestFailed: "API did not answer",
+  noCredentials: "not signed in here",
+};
+
 function provenance(limits: Limits): string {
   const at = new Date(limits.fetchedAt);
   const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -261,7 +283,10 @@ function provenance(limits: Limits): string {
     ? `${at.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`
     : time;
   const prefix = limits.live ? "Live" : "Cached";
-  const hint = stale ? " · run /usage to refresh" : "";
+  // Say why the live read did not happen. "Run /usage" is only the answer when
+  // there is nothing more specific to report.
+  const why = limits.reason ? REASONS[limits.reason] : undefined;
+  const hint = why ? ` · ${why}` : stale ? " · run /usage to refresh" : "";
   // Source, account and credit state are for when a number looks surprising,
   // which is not often enough to spend a line on.
   const detail = [limits.source, `account ${limits.account}`, extraUsagePhrase(limits.extraUsage)]
@@ -490,9 +515,9 @@ async function load(): Promise<void> {
   try {
     const fetched = await invoke<Limits[]>("plan_limits");
     for (const one of fetched) {
-      if (one.live) lastLive.set(one.account, one);
+      if (one.live) lastLive.set(identity(one), one);
     }
-    accounts = fetched.map((one) => (one.live ? one : (lastLive.get(one.account) ?? one)));
+    accounts = fetched.map((one) => (one.live ? one : (lastLive.get(identity(one)) ?? one)));
     // Only worth asking when there is nothing else to show. A sign-in already
     // under way keeps its state until it lands, so the prompt does not flip
     // back while the console window is still open.
