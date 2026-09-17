@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -401,6 +402,7 @@ const bodyEl = document.getElementById("body")!;
 const contentEl = document.getElementById("content")!;
 const footerEl = document.getElementById("footer")!;
 const noteEl = document.getElementById("provenance")!;
+const versionEl = document.getElementById("version")!;
 const clockEl = document.getElementById("clock")!;
 
 /**
@@ -415,7 +417,9 @@ function applyCornerRadius(): void {
 
 /**
  * Fills the footer: where the figures came from on the left, the clock on the
- * right. The row goes altogether when it would carry neither.
+ * right, and, while the settings panel is open, the version in the middle -
+ * the panel has no reading to report, and the row would otherwise be empty or
+ * gone. The row goes altogether only when it would carry nothing at all.
  */
 function applyFooter(): void {
   const limits = showingSettings ? undefined : chosen(accounts, settings);
@@ -424,8 +428,9 @@ function applyFooter(): void {
   noteEl.title = note?.detail ?? "";
   noteEl.classList.toggle("stale", note?.stale ?? false);
 
+  versionEl.textContent = showingSettings ? version : "";
   clockEl.hidden = settings.clock === "off";
-  footerEl.hidden = clockEl.hidden && !note;
+  footerEl.hidden = clockEl.hidden && !note && !versionEl.textContent;
 }
 
 function tick(): void {
@@ -483,6 +488,8 @@ let settings: Settings = {
   cornerRadius: 12,
 };
 let showingSettings = false;
+/** Filled in at startup; the footer shows it while the settings panel is open. */
+let version = "";
 let accounts: Limits[] = [];
 let login: LoginState = "ok";
 /**
@@ -639,6 +646,9 @@ void (async () => {
   } catch {
     // Keep the defaults; everything stays visible.
   }
+  version = await getVersion()
+    .then((v) => `v${v}`)
+    .catch(() => "");
   applyCornerRadius();
   applyFooter();
   scheduleRefresh();
