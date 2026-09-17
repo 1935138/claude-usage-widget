@@ -19,8 +19,12 @@
         <div id="content"><p class="note">Reading logs&hellip;</p></div>
       </div>
       <!-- Outside #content so a re-render never disturbs it, and so the clock
-           can tick every second without touching the report. -->
-      <div id="clock" class="clock" data-tauri-drag-region></div>
+           can tick every second without touching the report. The reading's own
+           timestamp sits here too: both are times, and one line is enough. -->
+      <div id="footer" class="footer" data-tauri-drag-region>
+        <span id="provenance" class="footer-note"></span>
+        <span id="clock" class="footer-clock"></span>
+      </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
