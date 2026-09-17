@@ -27,7 +27,8 @@ weekly limit, and any per-model weekly limit, each with the time it resets.
 
 - **Live figures.** Reads the same usage endpoint Claude Code uses, so the
   numbers are current rather than whatever was cached when you last typed
-  `/usage`.
+  `/usage`. The footer says when they were last updated, and says so plainly
+  when it is showing a cache instead.
 - **Pace marker.** The red rule on each bar is where the clock has got to. A bar
   ahead of its marker will run out before the window resets.
 - **Windows and WSL.** Finds every Claude Code install on the machine, including
@@ -66,6 +67,7 @@ the settings panel:
 | Pace marker | on / off |
 | Refresh every | manual, 3m – 1h (default 5m) |
 | Clock | shown / hidden |
+| Time format | 24-hour (default) / 12-hour |
 | Corners | square, slight, rounded (default), very rounded |
 
 Settings are stored as `settings.json` in the app's config directory and can be

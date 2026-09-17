@@ -25,6 +25,13 @@ pub const DEFAULT_REFRESH_SECONDS: u32 = 300;
 pub const CLOCK_POSITIONS: [&str; 4] = ["off", "left", "center", "right"];
 pub const DEFAULT_CLOCK: &str = "right";
 
+/// How every time on the card is written: `12` for `5:14 PM`, `24` for `17:14`.
+/// One setting for the clock, the reading's own timestamp and the reset lines,
+/// so the card never mixes the two notations. Kept as a string for the same
+/// reason as the clock position.
+pub const TIME_FORMATS: [&str; 2] = ["24", "12"];
+pub const DEFAULT_TIME_FORMAT: &str = "24";
+
 /// Corner radius of the card, in CSS pixels. Any value up to the ceiling is
 /// honoured so a hand-edited file can pick one the panel does not offer; past
 /// it the curve starts eating the title bar's own corners, so it is clamped
@@ -57,6 +64,8 @@ pub struct Settings {
     pub refresh_seconds: u32,
     /// One of [`CLOCK_POSITIONS`].
     pub clock: String,
+    /// One of [`TIME_FORMATS`].
+    pub time_format: String,
     /// How rounded the card's corners are, in CSS pixels; `0` is square. The
     /// window itself is undecorated and transparent, so this is the whole of
     /// the widget's outline - Windows draws no frame to round.
@@ -85,6 +94,9 @@ impl Settings {
         if !CLOCK_POSITIONS.contains(&self.clock.as_str()) {
             self.clock = DEFAULT_CLOCK.to_string();
         }
+        if !TIME_FORMATS.contains(&self.time_format.as_str()) {
+            self.time_format = DEFAULT_TIME_FORMAT.to_string();
+        }
         self.corner_radius = self.corner_radius.min(MAX_CORNER_RADIUS);
         self
     }
@@ -100,6 +112,7 @@ impl Default for Settings {
             account: None,
             refresh_seconds: DEFAULT_REFRESH_SECONDS,
             clock: DEFAULT_CLOCK.to_string(),
+            time_format: DEFAULT_TIME_FORMAT.to_string(),
             corner_radius: DEFAULT_CORNER_RADIUS,
         }
     }
@@ -187,6 +200,26 @@ mod tests {
             }
             .normalized();
             assert_eq!(s.clock, position);
+        }
+    }
+
+    #[test]
+    fn an_unknown_time_format_falls_back_to_the_default() {
+        let s: Settings = serde_json::from_str(r#"{"timeFormat":"roman","weekly":false}"#).unwrap();
+        let s = s.normalized();
+        assert_eq!(s.time_format, DEFAULT_TIME_FORMAT);
+        assert!(!s.weekly);
+    }
+
+    #[test]
+    fn every_offered_time_format_survives_normalization() {
+        for format in TIME_FORMATS {
+            let s = Settings {
+                time_format: format.to_string(),
+                ..Default::default()
+            }
+            .normalized();
+            assert_eq!(s.time_format, format);
         }
     }
 

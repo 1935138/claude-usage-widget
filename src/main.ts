@@ -44,6 +44,7 @@ interface Settings {
   account: string | null;
   refreshSeconds: number;
   clock: string;
+  timeFormat: string;
   cornerRadius: number;
 }
 
@@ -70,6 +71,12 @@ const CORNER_CHOICES: ReadonlyArray<[number, string]> = [
   [20, "Very rounded"],
 ];
 
+/** How times are written, matching `TIME_FORMATS` in the settings crate. */
+const TIME_FORMAT_CHOICES: ReadonlyArray<[string, string]> = [
+  ["24", "24-hour"],
+  ["12", "12-hour"],
+];
+
 /** Offered refresh intervals, in seconds; 0 polls only on demand. */
 const REFRESH_CHOICES: ReadonlyArray<[number, string]> = [
   [0, "Manual only"],
@@ -88,13 +95,27 @@ const FIT_EPSILON = 2;
 const esc = (s: string): string =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
+/**
+ * Every time on the card goes through here, so the clock, the reading's own
+ * timestamp and the reset lines are always written the same way.
+ */
+function clockTime(at: Date, seconds = false): string {
+  const twelve = settings.timeFormat === "12";
+  return at.toLocaleTimeString([], {
+    hour: twelve ? "numeric" : "2-digit",
+    minute: "2-digit",
+    ...(seconds ? { second: "2-digit" as const } : {}),
+    hour12: twelve,
+  });
+}
+
 /** Reset instants are absolute; render them in the viewer's own zone. */
 function resetLabel(iso: string | null): string {
   if (!iso) return "";
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
   const sameDay = at.toDateString() === new Date().toDateString();
-  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const time = clockTime(at);
   return sameDay
     ? `Resets ${time}`
     : `Resets ${at.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
@@ -141,11 +162,9 @@ function paceMarker(m: Meter, show: boolean): string {
  * How close a bar has crept to its cap is carried by the percentage beside it
  * and by the pace marker, not by turning the bar amber or red.
  */
-function meter(m: Meter, previousReset: string, hue: string, pace: boolean): string {
+function meter(m: Meter, hue: string, pace: boolean): string {
   const pct = Math.max(0, Math.min(100, m.percent));
   const reset = resetLabel(m.resetsAt);
-  // The weekly meters share a reset instant; printing it twice is noise.
-  const showReset = reset && reset !== previousReset ? reset : "";
   return `<div class="meter${m.isActive ? " is-active" : ""}">
       <div class="row-head">
         <span class="row-label">${esc(m.label)}</span>
@@ -155,7 +174,7 @@ function meter(m: Meter, previousReset: string, hue: string, pace: boolean): str
         <div class="fill" style="width:${pct}%;background:${esc(hue)}"></div>
         ${paceMarker(m, pace)}
       </div>
-      ${showReset ? `<div class="meter-reset">${esc(showReset)}</div>` : ""}
+      ${reset ? `<div class="meter-reset">${esc(reset)}</div>` : ""}
     </div>`;
 }
 
@@ -253,12 +272,12 @@ const REASONS: Record<string, string> = {
 
 function provenance(limits: Limits): { text: string; detail: string; stale: boolean } {
   const at = new Date(limits.fetchedAt);
-  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const time = clockTime(at);
   const stale = !limits.live && Date.now() - at.getTime() > STALE_MS;
   const when = stale
     ? `${at.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`
     : time;
-  const prefix = limits.live ? "Live" : "Cached";
+  const prefix = limits.live ? "Updated" : "Cached";
   // Say why the live read did not happen. "Run /usage" is only the answer when
   // there is nothing more specific to report.
   const why = limits.reason ? REASONS[limits.reason] : undefined;
@@ -300,15 +319,12 @@ function render(all: Limits[], s: Settings, login: LoginState): string {
   const limits = chosen(all, s)!;
   const meters = limits.meters.filter((m) => wanted(m, s));
 
-  let previousReset = "";
   let scopedSeen = 0;
   const bars = meters
     .map((m) => {
       const hue = hueFor(m, scopedSeen);
       if (m.kind !== "session" && m.kind !== "weekly_all") scopedSeen += 1;
-      const html = meter(m, previousReset, hue, s.pace);
-      previousReset = resetLabel(m.resetsAt) || previousReset;
-      return html;
+      return meter(m, hue, s.pace);
     })
     .join("");
 
@@ -334,6 +350,10 @@ function renderSettings(s: Settings): string {
       <input type="checkbox" data-key="${esc(key)}"${s[key] ? " checked" : ""} />
       <span>${esc(label)}</span>
     </label>`,
+  ).join("");
+  const formats = TIME_FORMAT_CHOICES.map(
+    ([value, label]) =>
+      `<option value="${esc(value)}"${value === s.timeFormat ? " selected" : ""}>${esc(label)}</option>`,
   ).join("");
   const clocks = CLOCK_CHOICES.map(
     ([value, label]) =>
@@ -365,6 +385,10 @@ function renderSettings(s: Settings): string {
       <div class="opt-row">
         <span>Clock</span>
         <select id="clock-position">${clocks}</select>
+      </div>
+      <div class="opt-row">
+        <span>Time format</span>
+        <select id="time-format" title="Applies to the clock, the reading's time and the reset lines">${formats}</select>
       </div>
       <div class="opt-row">
         <span>Corners</span>
@@ -405,12 +429,7 @@ function applyFooter(): void {
 }
 
 function tick(): void {
-  clockEl.textContent = new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  clockEl.textContent = clockTime(new Date(), true);
 }
 
 /** Last height handed to the backend, to avoid resizing on every refresh. */
@@ -460,6 +479,7 @@ let settings: Settings = {
   account: null,
   refreshSeconds: 300,
   clock: "right",
+  timeFormat: "24",
   cornerRadius: 12,
 };
 let showingSettings = false;
@@ -571,6 +591,14 @@ contentEl.addEventListener("change", (event) => {
     settings.cornerRadius = Number(target.value);
     persist();
     applyCornerRadius();
+    return;
+  }
+  if (target instanceof HTMLSelectElement && target.id === "time-format") {
+    settings.timeFormat = target.value;
+    persist();
+    tick();
+    // Every time on the card is written by this setting, so redraw the lot.
+    void draw();
     return;
   }
   if (target instanceof HTMLSelectElement && target.id === "clock-position") {
