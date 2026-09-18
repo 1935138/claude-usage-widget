@@ -358,9 +358,14 @@ body {
   justify-content: center;
   padding: 22px 0;
 }
-.splash img {
-  border-radius: 6px;
+.splash-icon {
+  color: var(--text-primary);
   opacity: 0.85;
+  /* The card is transparent here, so the icon stands on whatever the desktop
+     happens to be. The theme's ink alone is not enough - it is dark on a light
+     theme, and a dark wallpaper would swallow it - so it carries a halo of the
+     surface colour, which is the ink's opposite in either theme. */
+  filter: drop-shadow(0 0 1px var(--surface-1)) drop-shadow(0 0 3px var(--surface-1));
 }
 
 /* Shown centred in place of the meters when this machine has no login yet. */

@@ -11,6 +11,7 @@ import { resolveLang, strings, type Strings } from "./i18n";
 import type { Limits, LoginState, SectionKey, Settings } from "./types";
 import { render } from "./view/card";
 import { renderSettings } from "./view/settings";
+import { splash } from "./view/splash";
 
 /** The card's 1px top and bottom border, which the content measurement misses. */
 const CARD_BORDERS = 2;
@@ -36,9 +37,6 @@ function applyLanguage(): void {
   document.getElementById("settings")!.title = t.settings;
   document.getElementById("refresh")!.title = t.refresh;
   document.getElementById("close")!.title = t.close;
-  // The splash carries no words of its own; this is what a screen reader reads
-  // while the first reading is on its way.
-  document.querySelector<HTMLImageElement>(".splash img")?.setAttribute("alt", t.loading);
 }
 
 /**
@@ -148,15 +146,10 @@ let login: LoginState = "ok";
  */
 const lastLive = new Map<string, Limits>();
 
-/** The icon, alone on a transparent window, until there is something to show. */
-function splash(): string {
-  return `<div class="splash"><img src="/avatar.png" alt="${esc(t.loading)}" width="48" height="48" /></div>`;
-}
-
 async function draw(): Promise<void> {
   cardEl.classList.toggle("loading", loading);
   contentEl.innerHTML = loading
-    ? splash()
+    ? splash(t)
     : showingSettings
       ? renderSettings(settings, t)
       : render(accounts, settings, login, t);

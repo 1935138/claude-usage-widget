@@ -16,9 +16,9 @@
       </header>
       <div id="body" class="body">
         <!-- Measured for the window height, so it must keep its natural size. -->
-        <div id="content">
-          <div class="splash"><img src="/avatar.png" alt="" width="48" height="48" /></div>
-        </div>
+        <!-- Filled by the page as soon as it runs; this is only what shows if
+             it somehow does not. -->
+        <div id="content"></div>
       </div>
       <!-- Outside #content so a re-render never disturbs it, and so the clock
            can tick every second without touching the report. The reading's own
