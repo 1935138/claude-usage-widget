@@ -2,3 +2,5 @@ target/
 /dist
 node_modules
 src-tauri/gen
+# Claude Code's local settings for this checkout.
+.claude
