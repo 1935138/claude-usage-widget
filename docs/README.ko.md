@@ -45,8 +45,8 @@
 
 | 파일 | 대상 |
 | --- | --- |
-| [claude-usage-widget_0.1.5_x64-setup.exe](https://github.com/1935138/claude-usage-widget/releases/download/v0.1.5/claude-usage-widget_0.1.5_x64-setup.exe) | 64비트 Windows |
-| [claude-usage-widget_0.1.5_x86-setup.exe](https://github.com/1935138/claude-usage-widget/releases/download/v0.1.5/claude-usage-widget_0.1.5_x86-setup.exe) | 32비트 Windows |
+| [claude-usage-widget_0.1.6_x64-setup.exe](https://github.com/1935138/claude-usage-widget/releases/download/v0.1.6/claude-usage-widget_0.1.6_x64-setup.exe) | 64비트 Windows |
+| [claude-usage-widget_0.1.6_x86-setup.exe](https://github.com/1935138/claude-usage-widget/releases/download/v0.1.6/claude-usage-widget_0.1.6_x86-setup.exe) | 32비트 Windows |
 
 Windows 11에는 WebView2 런타임이 이미 들어 있습니다. Windows 10이면 설치 과정에서
 필요할 때 받아옵니다. 이전 버전과 `SHA256SUMS`는
