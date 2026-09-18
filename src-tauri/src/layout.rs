@@ -10,7 +10,7 @@
 //! the maths always goes through the *current* monitor's origin, size and scale
 //! factor rather than any global assumption.
 
-use tauri::{LogicalPosition, LogicalSize, Runtime, WebviewWindow};
+use tauri::{LogicalPosition, LogicalSize, PhysicalSize, Runtime, WebviewWindow};
 
 /// Logical width the widget prefers. Logical units already absorb the display's
 /// DPI scaling, so this is the same apparent size at 100% and at 125%.
@@ -89,22 +89,32 @@ pub fn fit<R: Runtime>(window: &WebviewWindow<R>, content_height: f64) -> tauri:
 
     let (max_width, max_height) = area.max_size();
     let width = clamp(PREFERRED_WIDTH, MIN_WIDTH, max_width);
-    let height = clamp(fitted_height(content_height), MIN_HEIGHT, max_height);
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let height = clamp(fitted_height(content_height, scale), MIN_HEIGHT, max_height);
 
-    window.set_size(LogicalSize::new(width, height))?;
+    // Sized in device pixels, not logical ones: converting a logical size rounds
+    // again, and that round left the window a pixel taller than the card. The
+    // window is transparent, so the extra pixel is a line of whatever is behind
+    // it - invisible in use, but a screenshot keeps it.
+    window.set_size(PhysicalSize::new(
+        (width * scale).round().max(1.0) as u32,
+        (height * scale).round().max(1.0) as u32,
+    ))?;
     reposition(window, &area, width, height)
 }
 
-/// The height to ask for, given what the page measured.
+/// The height to ask for, given what the page measured, in whole device pixels.
 ///
-/// One logical pixel more than measured. The window is sized in whole device
-/// pixels, so a height that is exact in CSS pixels can land a fraction short of
-/// what the page laid out - at 125% scaling the client area came back 1px
-/// shorter than the card, which clipped the card's bottom border off the screen.
-/// The card is `height: 100vh`, so the slack is absorbed rather than left as a
-/// gap.
-fn fitted_height(content_height: f64) -> f64 {
-    (content_height + 1.0).ceil()
+/// Rounded rather than ceilinged. A card measuring 305.75 CSS px at 125% is
+/// 382.19 device pixels, and the renderer paints 382 of them: the last fifth of
+/// a pixel carries almost nothing. Asking for 383 left a line of window with no
+/// card on it, and the window is transparent, so that line is whatever happens
+/// to be behind it - invisible in use, but a screenshot keeps it.
+fn fitted_height(content_height: f64, scale: f64) -> f64 {
+    if scale <= 0.0 {
+        return content_height.round();
+    }
+    (content_height * scale).round().max(1.0) / scale
 }
 
 /// Places the window at the top-right of its work area at a provisional height,
@@ -169,11 +179,15 @@ mod tests {
     }
 
     #[test]
-    fn the_fitted_height_leaves_room_for_the_bottom_border() {
-        // Whole device pixels are what the window is actually sized in, so a
-        // measurement that is exact in CSS pixels still has to round up.
-        assert_eq!(fitted_height(305.6), 307.0);
-        assert_eq!(fitted_height(304.0), 305.0);
+    fn the_fitted_height_lands_on_a_whole_device_pixel() {
+        // 305.6 CSS px at 125% is 382 device px exactly.
+        assert_eq!(fitted_height(305.6, 1.25), 305.6);
+        // 305.75 is 382.19, and 382 is what gets painted.
+        assert_eq!(fitted_height(305.75, 1.25), 382.0 / 1.25);
+        // 306.0 is 382.5, which rounds the other way.
+        assert_eq!(fitted_height(306.0, 1.25), 383.0 / 1.25);
+        // Without scaling it is just a rounding.
+        assert_eq!(fitted_height(304.2, 1.0), 304.0);
     }
 
     #[test]

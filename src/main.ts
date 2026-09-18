@@ -87,17 +87,19 @@ async function fitWindow(): Promise<void> {
   await document.fonts.ready.catch(() => undefined);
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-  const bar = document.querySelector<HTMLElement>(".bar");
+  // The card's own box is what the window should match, measured rather than
+  // rounded: `offsetHeight` is an integer, and adding up rounded parts left the
+  // window a pixel out either way - short of the card clipped its bottom
+  // border, over it left a line of desktop showing through.
+  //
+  // While the icon is up the card is deliberately `100vh`, so measuring it then
+  // would only hand the window's own height back; the content it holds is what
+  // decides how tall the window should be.
   const style = getComputedStyle(bodyEl);
   const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-  // `contentEl` keeps its natural height; `bodyEl` is flex:1 and would just
-  // report the viewport back.
-  const height =
-    (bar?.offsetHeight ?? 0) +
-    contentEl.offsetHeight +
-    padding +
-    footerEl.offsetHeight +
-    CARD_BORDERS;
+  const height = loading
+    ? contentEl.getBoundingClientRect().height + padding + CARD_BORDERS
+    : cardEl.getBoundingClientRect().height;
 
   if (!Number.isFinite(height) || Math.abs(height - lastFitted) < FIT_EPSILON) {
     return;
