@@ -11,6 +11,7 @@ import {
 import { esc } from "../format";
 import type { Strings } from "../i18n";
 import type { Settings } from "../types";
+import type { UpdateStatus } from "../updates";
 
 /** One `<option>` per value, with the catalogue supplying the words. */
 function options<T extends string | number>(
@@ -36,7 +37,27 @@ function row(label: string, control: string): string {
       </div>`;
 }
 
-export function renderSettings(s: Settings, t: Strings): string {
+/** The update row's control: a button where there is something to do, else a word. */
+function updateControl(status: UpdateStatus, t: Strings): string {
+  switch (status.kind) {
+    case "checking":
+      return `<span class="opt-note">${esc(t.updateChecking)}</span>`;
+    case "current":
+      return `<span class="opt-note">${esc(t.updateCurrent)}</span>`;
+    case "available":
+      return `<button id="install-update" class="opt-btn" type="button">${esc(
+        t.updateAvailable(status.version),
+      )}</button>`;
+    case "installing":
+      return `<span class="opt-note">${esc(t.updateInstalling)}</span>`;
+    case "failed":
+      return `<button id="check-update" class="opt-btn" type="button">${esc(t.updateFailed)}</button>`;
+    default:
+      return `<button id="check-update" class="opt-btn" type="button">${esc(t.updateCheck)}</button>`;
+  }
+}
+
+export function renderSettings(s: Settings, t: Strings, update: UpdateStatus): string {
   const switches = SECTION_KEYS.map(
     (key) => `<label class="opt">
       <input type="checkbox" data-key="${esc(key)}"${s[key] ? " checked" : ""} />
@@ -74,6 +95,7 @@ export function renderSettings(s: Settings, t: Strings): string {
         t.language,
         `<select id="language">${options(LANGUAGE_VALUES, s.language, t.languageChoice)}</select>`,
       )}
+      ${row(t.update, updateControl(update, t))}
       ${row(
         t.corners,
         `<select id="corner-radius" title="${esc(t.cornersTitle)}">${options(

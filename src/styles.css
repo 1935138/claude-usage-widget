@@ -304,6 +304,24 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* The controls a row can carry besides a select: a word, or something to press. */
+.opt-note {
+  color: var(--text-muted);
+}
+.opt-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--surface-1);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.opt-btn:hover {
+  background: var(--surface-2);
+}
+
 .opt-row {
   display: flex;
   align-items: center;

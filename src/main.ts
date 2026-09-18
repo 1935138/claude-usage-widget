@@ -9,6 +9,7 @@ import { chosen, identity } from "./accounts";
 import { clockTime, esc, provenance } from "./format";
 import { resolveLang, strings, type Strings } from "./i18n";
 import type { Limits, LoginState, SectionKey, Settings } from "./types";
+import { checkForUpdate, installUpdate, type UpdateStatus } from "./updates";
 import { render } from "./view/card";
 import { renderSettings } from "./view/settings";
 
@@ -152,6 +153,8 @@ let t: Strings = strings(resolveLang("system"));
  */
 let loading = true;
 let showingSettings = false;
+/** What the last update check found; only ever shown in the settings panel. */
+let update: UpdateStatus = { kind: "unknown" };
 /** Filled in at startup; the footer shows it while the settings panel is open. */
 let version = "";
 let accounts: Limits[] = [];
@@ -173,7 +176,7 @@ async function draw(): Promise<void> {
   contentEl.innerHTML = loading
     ? ""
     : showingSettings
-      ? renderSettings(settings, t)
+      ? renderSettings(settings, t, update)
       : render(accounts, settings, login, t);
   applyFooter();
   await fitWindow();
@@ -307,12 +310,38 @@ contentEl.addEventListener("change", (event) => {
 document.getElementById("settings")!.addEventListener("click", () => {
   showingSettings = !showingSettings;
   document.getElementById("settings")!.classList.toggle("on", showingSettings);
+  // Ask once, when the panel is first opened: nobody wants a widget that phones
+  // home on a timer to see whether it is out of date.
+  if (showingSettings && update.kind === "unknown") void runUpdateCheck();
   void draw();
 });
 document.getElementById("refresh")!.addEventListener("click", () => void load());
+/** Runs a check and redraws the panel around whatever it found. */
+async function runUpdateCheck(): Promise<void> {
+  update = { kind: "checking" };
+  await draw();
+  update = await checkForUpdate();
+  await draw();
+}
+
 contentEl.addEventListener("click", (event) => {
-  if (!(event.target instanceof HTMLElement) || event.target.id !== "login") return;
-  void startLogin();
+  if (!(event.target instanceof HTMLElement)) return;
+  if (event.target.id === "login") {
+    void startLogin();
+    return;
+  }
+  if (event.target.id === "check-update") {
+    void runUpdateCheck();
+    return;
+  }
+  if (event.target.id === "install-update") {
+    void (async () => {
+      update = { kind: "installing" };
+      await draw();
+      update = await installUpdate();
+      await draw();
+    })();
+  }
 });
 document.getElementById("close")!.addEventListener("click", () => void getCurrentWindow().close());
 

@@ -11,7 +11,8 @@
     "check:css": "node -e \"const fs=require('fs'),g=fs.readdirSync('dist/assets').find(f=>f.endsWith('.css'));const c=fs.readFileSync('dist/assets/'+g,'utf8');const bad=c.includes('{ ')||c.includes('; ');if(bad){console.error('CSS did not fully minify - a rule earlier in the file is malformed');process.exit(1)}console.log('css ok')\""
   },
   "dependencies": {
-    "@tauri-apps/api": "^2"
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-updater": "^2.11.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

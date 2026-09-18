@@ -67,6 +67,13 @@ export interface Strings {
   cornerChoice: (px: number) => string;
   language: string;
   languageChoice: (value: string) => string;
+  update: string;
+  updateCheck: string;
+  updateChecking: string;
+  updateCurrent: string;
+  updateAvailable: (version: string) => string;
+  updateInstalling: string;
+  updateFailed: string;
 }
 
 const en: Strings = {
@@ -136,6 +143,13 @@ const en: Strings = {
   language: "Language",
   languageChoice: (value) =>
     ({ system: "System", en: "English", ko: "한국어" })[value] ?? value,
+  update: "Update",
+  updateCheck: "Check",
+  updateChecking: "Checking…",
+  updateCurrent: "Up to date",
+  updateAvailable: (version) => `Install ${version}`,
+  updateInstalling: "Installing…",
+  updateFailed: "Check failed",
 };
 
 const ko: Strings = {
@@ -204,6 +218,13 @@ const ko: Strings = {
   language: "언어",
   languageChoice: (value) =>
     ({ system: "시스템 설정", en: "English", ko: "한국어" })[value] ?? value,
+  update: "업데이트",
+  updateCheck: "확인",
+  updateChecking: "확인 중…",
+  updateCurrent: "최신 버전입니다",
+  updateAvailable: (version) => `${version} 설치`,
+  updateInstalling: "설치 중…",
+  updateFailed: "확인 실패",
 };
 
 const CATALOGUES: Record<Lang, Strings> = { en, ko };
