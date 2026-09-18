@@ -44,12 +44,21 @@ function die(message) {
   process.exit(1);
 }
 
+/**
+ * Runs a command.
+ *
+ * `npm`, `npx` and `gh` are batch shims on Windows and need a shell to start;
+ * everything else here is a real executable, and going through a shell only
+ * mangles arguments that contain spaces. Hence `shell` per call rather than a
+ * blanket setting.
+ */
 function run(command, args, options = {}) {
+  const shims = ["npm", "npx", "gh"];
   return execFileSync(command, args, {
     cwd: ROOT,
     encoding: "utf8",
     stdio: options.quiet ? "pipe" : "inherit",
-    shell: process.platform === "win32",
+    shell: process.platform === "win32" && shims.includes(command),
     ...options,
   });
 }
