@@ -43,7 +43,11 @@ function updateControl(status: UpdateStatus, t: Strings): string {
     case "checking":
       return `<span class="opt-note">${esc(t.updateChecking)}</span>`;
     case "current":
-      return `<span class="opt-note">${esc(t.updateCurrent)}</span>`;
+      // Still a button: a widget that has said "up to date" once should not
+      // have to be restarted to say it again an hour later.
+      return `<button id="check-update" class="opt-btn" type="button" title="${esc(
+        t.updateCheck,
+      )}">${esc(t.updateCurrent)}</button>`;
     case "available":
       return `<button id="install-update" class="opt-btn" type="button">${esc(
         t.updateAvailable(status.version),
