@@ -46,8 +46,8 @@ Download an installer and run it.
 
 | File | For |
 | --- | --- |
-| [claude-usage-widget_0.1.3_x64-setup.exe](../../releases/download/v0.1.3/claude-usage-widget_0.1.3_x64-setup.exe) | 64-bit Windows |
-| [claude-usage-widget_0.1.3_x86-setup.exe](../../releases/download/v0.1.3/claude-usage-widget_0.1.3_x86-setup.exe) | 32-bit Windows |
+| [claude-usage-widget_0.1.4_x64-setup.exe](../../releases/download/v0.1.4/claude-usage-widget_0.1.4_x64-setup.exe) | 64-bit Windows |
+| [claude-usage-widget_0.1.4_x86-setup.exe](../../releases/download/v0.1.4/claude-usage-widget_0.1.4_x86-setup.exe) | 32-bit Windows |
 
 Windows 11 already has the WebView2 runtime. On Windows 10 the installer fetches
 it if needed. Older versions and `SHA256SUMS` are on the
