@@ -11,7 +11,6 @@ import { resolveLang, strings, type Strings } from "./i18n";
 import type { Limits, LoginState, SectionKey, Settings } from "./types";
 import { render } from "./view/card";
 import { renderSettings } from "./view/settings";
-import { splash } from "./view/splash";
 
 /** The card's 1px top and bottom border, which the content measurement misses. */
 const CARD_BORDERS = 2;
@@ -130,7 +129,7 @@ let t: Strings = strings(resolveLang("system"));
 /**
  * Until the first reading is in there is nothing to draw, and a card drawn
  * around nothing says the wrong thing: it would read as "no usage found"
- * rather than "not asked yet".
+ * rather than "not asked yet". So the window waits, empty and transparent.
  */
 let loading = true;
 let showingSettings = false;
@@ -150,8 +149,10 @@ const lastLive = new Map<string, Limits>();
 
 async function draw(): Promise<void> {
   cardEl.classList.toggle("loading", loading);
+  // Nothing at all until the first reading lands: the card is transparent and
+  // stripped while `loading`, so the window is there without showing anything.
   contentEl.innerHTML = loading
-    ? splash(t)
+    ? ""
     : showingSettings
       ? renderSettings(settings, t)
       : render(accounts, settings, login, t);

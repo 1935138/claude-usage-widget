@@ -333,39 +333,15 @@ body {
 }
 
 /* Until the first reading lands there is nothing worth framing, so the card
-   gets out of the way. The window is transparent, so what is left on screen is
-   the icon alone. */
+   gets out of the way entirely: the window is transparent, and stays that way
+   until there is something to put in it. */
 .card.loading {
   background: transparent;
   border-color: transparent;
-  /* The window has a minimum height that the icon alone does not reach, so the
-     card fills it and centres the icon rather than pinning it to the top. */
-  height: 100vh;
-}
-.card.loading .body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .card.loading .bar,
 .card.loading .footer {
   display: none;
-}
-
-.splash {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 22px 0;
-}
-.splash-icon {
-  color: var(--text-primary);
-  opacity: 0.85;
-  /* The card is transparent here, so the icon stands on whatever the desktop
-     happens to be. The theme's ink alone is not enough - it is dark on a light
-     theme, and a dark wallpaper would swallow it - so it carries a halo of the
-     surface colour, which is the ink's opposite in either theme. */
-  filter: drop-shadow(0 0 1px var(--surface-1)) drop-shadow(0 0 3px var(--surface-1));
 }
 
 /* Shown centred in place of the meters when this machine has no login yet. */

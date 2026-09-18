@@ -19,7 +19,6 @@ export interface Strings {
   settings: string;
   refresh: string;
   close: string;
-  loading: string;
 
   meterSession: string;
   meterWeeklyAll: string;
@@ -76,7 +75,6 @@ const en: Strings = {
   settings: "Settings",
   refresh: "Refresh",
   close: "Close",
-  loading: "Reading logs…",
 
   meterSession: "Current session",
   meterWeeklyAll: "Current week (all models)",
@@ -146,7 +144,6 @@ const ko: Strings = {
   settings: "설정",
   refresh: "새로 고침",
   close: "닫기",
-  loading: "로그 읽는 중…",
 
   meterSession: "현재 세션",
   meterWeeklyAll: "이번 주 (전체 모델)",
