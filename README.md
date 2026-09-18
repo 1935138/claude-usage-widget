@@ -82,6 +82,10 @@ the file, and a UTF-8 BOM is tolerated. `cornerRadius` accepts any value up to
 The window is undecorated and transparent, so Windows draws no frame around it.
 The card paints its own outline, which is what **Corners** shapes.
 
+Drag it where you want it and it opens there next time, on whichever monitor you
+left it on. If that monitor is gone when it next starts, it opens on one that is
+still attached rather than off the edge of the desktop.
+
 The card is written in English or Korean, following the machine's display
 language unless you pick one. Times are not part of that choice: they follow the
 machine's own region, with **Time format** deciding only the 12- or 24-hour
