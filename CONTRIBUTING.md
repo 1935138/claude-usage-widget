@@ -60,6 +60,47 @@ npm run build                                        # types, bundle, CSS check
 makes esbuild pass the rest of the file through verbatim, dropping every rule
 after it while the build still reports success.
 
+## Releasing
+
+The version lives in three files - `package.json`, `src-tauri/tauri.conf.json`
+and `src-tauri/Cargo.toml` - plus the installer links in both READMEs. Bump all
+five, then build both architectures **with the widget closed**, since Windows
+locks a running `.exe` and the build fails at the link step:
+
+```sh
+npm run tauri build                                  # x64
+npx tauri build --target i686-pc-windows-msvc        # x86
+```
+
+Builds have to be signed, or the update will be refused by everyone who already
+has the widget. The private key is not in this repository; point the build at it:
+
+```sh
+TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/claude-usage-widget.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="…" npm run tauri build
+```
+
+Each installer then comes with a `.sig` beside it. The release carries four
+assets: the two installers renamed to `claude-usage-widget_<version>_x64-setup.exe`
+and `…_x86-setup.exe`, a `SHA256SUMS` over both, and `latest.json`, which is what
+installed widgets read to find out a release exists:
+
+```json
+{
+  "version": "0.1.5",
+  "notes": "…",
+  "pub_date": "2026-09-18T07:24:58Z",
+  "platforms": {
+    "windows-x86_64": { "signature": "<the .sig file's contents>", "url": "<the x64 installer's download URL>" },
+    "windows-i686":   { "signature": "…",                          "url": "…" }
+  }
+}
+```
+
+Write `latest.json` as UTF-8 **without a BOM**. PowerShell's `Set-Content
+-Encoding utf8` adds one, and the updater cannot parse it - the same trap
+`settings.json` has. GitHub also caches `/releases/latest/download/latest.json`
+for a few minutes, so a corrected file does not take effect immediately.
+
 ## Sending a change
 
 - Keep commits to one change each, with a message that says why rather than
