@@ -71,6 +71,25 @@ function tick(): void {
   clockEl.textContent = clockTime(new Date(), settings.timeFormat, t, true);
 }
 
+/**
+ * Grows the card by a fraction of a pixel so that it ends on a whole device
+ * pixel, and answers how tall it then is.
+ *
+ * The window can only be a whole number of device pixels tall. A card that ends
+ * part-way through one leaves the backend to choose: round down and the card's
+ * bottom border is clipped off the screen, round up and a pixel of window has
+ * no card on it, which - the window being transparent - shows the desktop.
+ * Neither is necessary if the card ends where a pixel does.
+ */
+function snapCardToDevicePixels(): number {
+  const dpr = devicePixelRatio || 1;
+  cardEl.style.paddingBottom = "0px";
+  const measured = cardEl.getBoundingClientRect().height;
+  const snapped = Math.ceil(measured * dpr) / dpr;
+  if (snapped > measured) cardEl.style.paddingBottom = `${snapped - measured}px`;
+  return snapped;
+}
+
 /** Last height handed to the backend, to avoid resizing on every refresh. */
 let lastFitted = 0;
 
@@ -98,7 +117,7 @@ async function fitWindow(): Promise<void> {
   const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
   const height = loading
     ? contentEl.getBoundingClientRect().height + padding + CARD_BORDERS
-    : cardEl.getBoundingClientRect().height;
+    : snapCardToDevicePixels();
 
   if (!Number.isFinite(height) || Math.abs(height - lastFitted) < FIT_EPSILON) {
     return;

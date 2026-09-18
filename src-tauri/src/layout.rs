@@ -105,16 +105,17 @@ pub fn fit<R: Runtime>(window: &WebviewWindow<R>, content_height: f64) -> tauri:
 
 /// The height to ask for, given what the page measured, in whole device pixels.
 ///
-/// Rounded rather than ceilinged. A card measuring 305.75 CSS px at 125% is
-/// 382.19 device pixels, and the renderer paints 382 of them: the last fifth of
-/// a pixel carries almost nothing. Asking for 383 left a line of window with no
-/// card on it, and the window is transparent, so that line is whatever happens
-/// to be behind it - invisible in use, but a screenshot keeps it.
+/// Always rounded up. The card's height is fractional and its bottom border sits
+/// at the very edge of it, so a window even half a device pixel short of the
+/// card clips that border off the screen - which is exactly what rounding to the
+/// nearest pixel did. What is left over is at most one device pixel of window
+/// with no card on it; the window is transparent, so that pixel shows whatever
+/// is behind it. A row of desktop nobody can see beats a missing border.
 fn fitted_height(content_height: f64, scale: f64) -> f64 {
     if scale <= 0.0 {
-        return content_height.round();
+        return content_height.ceil();
     }
-    (content_height * scale).round().max(1.0) / scale
+    (content_height * scale).ceil().max(1.0) / scale
 }
 
 /// Places the window at the top-right of its work area at a provisional height,
@@ -179,15 +180,16 @@ mod tests {
     }
 
     #[test]
-    fn the_fitted_height_lands_on_a_whole_device_pixel() {
-        // 305.6 CSS px at 125% is 382 device px exactly.
+    fn the_fitted_height_never_falls_short_of_the_card() {
+        // Exact already: 305.6 CSS px at 125% is 382 device px.
         assert_eq!(fitted_height(305.6, 1.25), 305.6);
-        // 305.75 is 382.19, and 382 is what gets painted.
-        assert_eq!(fitted_height(305.75, 1.25), 382.0 / 1.25);
-        // 306.0 is 382.5, which rounds the other way.
-        assert_eq!(fitted_height(306.0, 1.25), 383.0 / 1.25);
-        // Without scaling it is just a rounding.
-        assert_eq!(fitted_height(304.2, 1.0), 304.0);
+        // 382.19 device px has to become 383, not 382: the fifth of a pixel
+        // that would be dropped is where the bottom border is.
+        assert_eq!(fitted_height(305.75, 1.25), 383.0 / 1.25);
+        // Never rounds down, however small the remainder.
+        assert!(fitted_height(305.61, 1.25) * 1.25 >= 305.61 * 1.25);
+        // Without scaling it is just a ceiling.
+        assert_eq!(fitted_height(304.2, 1.0), 305.0);
     }
 
     #[test]
