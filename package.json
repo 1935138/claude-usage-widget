@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build && npm run check:css",
     "test": "vitest run",
+    "release": "node scripts/release.mjs",
     "tauri": "tauri",
     "check:css": "node -e \"const fs=require('fs'),g=fs.readdirSync('dist/assets').find(f=>f.endsWith('.css'));const c=fs.readFileSync('dist/assets/'+g,'utf8');const bad=c.includes('{ ')||c.includes('; ');if(bad){console.error('CSS did not fully minify - a rule earlier in the file is malformed');process.exit(1)}console.log('css ok')\""
   },

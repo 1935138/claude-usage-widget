@@ -62,44 +62,52 @@ after it while the build still reports success.
 
 ## Releasing
 
-The version lives in three files - `package.json`, `src-tauri/tauri.conf.json`
-and `src-tauri/Cargo.toml` - plus the installer links in both READMEs. Bump all
-five, then build both architectures **with the widget closed**, since Windows
-locks a running `.exe` and the build fails at the link step:
+```sh
+npm run release -- 0.1.7             # version, checks, both architectures, signatures
+npm run release -- 0.1.7 --publish   # the above, then commit, push and create the release
+```
+
+The script does what used to be six manual steps, each of which went wrong at
+least once: it refuses to start on a dirty tree, off `main`, or while the widget
+is running (Windows locks a running `.exe`, and the build then fails at the link
+step with a message that never mentions the widget). It bumps the version in the
+three files and both READMEs, runs the checks, builds x64 and x86, and stages the
+installers, a `SHA256SUMS` and `latest.json` under `target/release-<version>/`.
+
+A run without `--publish` leaves the version bumped and nothing uploaded, so you
+can look at what it made. `git checkout .` undoes the bump.
+
+### The signing key
+
+Releases are signed. An unsigned one cannot be installed as an update by anyone
+who already has the widget, because the updater verifies the signature against
+the public key baked into the app. The key is not in this repository:
 
 ```sh
-npm run tauri build                                  # x64
-npx tauri build --target i686-pc-windows-msvc        # x86
+TAURI_SIGNING_PRIVATE_KEY=~/.tauri/claude-usage-widget.key
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD=…
 ```
 
-Builds have to be signed, or the update will be refused by everyone who already
-has the widget. The private key is not in this repository; point the build at it:
+On Windows the script reads the password from the user environment in the
+registry when the variable is not already set, because `setx` does not reach a
+shell that is already running.
 
-```sh
-TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/claude-usage-widget.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="…" npm run tauri build
-```
+**Losing the key means no existing install can ever be updated again** - a new
+key would be rejected by every widget already out there, and everyone would have
+to install by hand. Keep an encrypted copy somewhere other than the machine that
+cuts releases. The key file is itself password-protected, which is what makes
+that copy safe to keep.
 
-Each installer then comes with a `.sig` beside it. The release carries four
-assets: the two installers renamed to `claude-usage-widget_<version>_x64-setup.exe`
-and `…_x86-setup.exe`, a `SHA256SUMS` over both, and `latest.json`, which is what
-installed widgets read to find out a release exists:
+### What `latest.json` is
 
-```json
-{
-  "version": "0.1.5",
-  "notes": "…",
-  "pub_date": "2026-09-18T07:24:58Z",
-  "platforms": {
-    "windows-x86_64": { "signature": "<the .sig file's contents>", "url": "<the x64 installer's download URL>" },
-    "windows-i686":   { "signature": "…",                          "url": "…" }
-  }
-}
-```
+The file installed widgets read to learn a release exists. It names the version,
+each architecture's installer URL and the signature of that installer. It must be
+UTF-8 **without a BOM** - PowerShell's `Set-Content -Encoding utf8` adds one and
+the updater cannot parse the result, which is the same trap `settings.json` has.
+The script writes it correctly; assembling it by hand is what to avoid.
 
-Write `latest.json` as UTF-8 **without a BOM**. PowerShell's `Set-Content
--Encoding utf8` adds one, and the updater cannot parse it - the same trap
-`settings.json` has. GitHub also caches `/releases/latest/download/latest.json`
-for a few minutes, so a corrected file does not take effect immediately.
+GitHub caches `/releases/latest/download/latest.json` for a few minutes, so a
+release is not visible to installed widgets the instant it is published.
 
 ## Sending a change
 
