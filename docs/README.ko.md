@@ -45,12 +45,15 @@
 
 | 파일 | 대상 |
 | --- | --- |
-| [claude-usage-widget_0.1.4_x64-setup.exe](https://github.com/1935138/claude-usage-widget/releases/download/v0.1.4/claude-usage-widget_0.1.4_x64-setup.exe) | 64비트 Windows |
-| [claude-usage-widget_0.1.4_x86-setup.exe](https://github.com/1935138/claude-usage-widget/releases/download/v0.1.4/claude-usage-widget_0.1.4_x86-setup.exe) | 32비트 Windows |
+| [claude-usage-widget_0.1.5_x64-setup.exe](https://github.com/1935138/claude-usage-widget/releases/download/v0.1.5/claude-usage-widget_0.1.5_x64-setup.exe) | 64비트 Windows |
+| [claude-usage-widget_0.1.5_x86-setup.exe](https://github.com/1935138/claude-usage-widget/releases/download/v0.1.5/claude-usage-widget_0.1.5_x86-setup.exe) | 32비트 Windows |
 
 Windows 11에는 WebView2 런타임이 이미 들어 있습니다. Windows 10이면 설치 과정에서
 필요할 때 받아옵니다. 이전 버전과 `SHA256SUMS`는
 [릴리스 페이지](https://github.com/1935138/claude-usage-widget/releases)에 있습니다.
+
+손으로 설치하는 것은 이 버전이 마지막입니다. 이후로는 설정 패널에서 위젯이 직접
+새 버전을 확인하고 설치합니다.
 
 Claude Code가 설치되어 있고 로그인되어 있어야 합니다. 그 외에 설정할 것은 없습니다.
 
