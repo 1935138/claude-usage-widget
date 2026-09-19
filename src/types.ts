@@ -50,11 +50,14 @@ export interface Settings {
   cornerRadius: number;
 }
 
+/** Mirrors `commands::ClaudeState`: what the backend found on this machine. */
+export type ClaudeState = "ok" | "needed" | "notInstalled";
+
 /**
- * Whether this machine has a Claude Code login: `needed` when none was found,
- * `waiting` while a `claude login` this widget started is still running.
+ * What the card should say about signing in: the backend's answer, plus
+ * `waiting` while a sign-in this widget started is still running.
  */
-export type LoginState = "ok" | "needed" | "waiting";
+export type LoginState = ClaudeState | "waiting";
 
 /** The boolean switches, as distinct from the account and interval settings. */
 export type SectionKey = "session" | "weekly" | "pace" | "provenance";
