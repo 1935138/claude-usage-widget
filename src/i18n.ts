@@ -52,6 +52,11 @@ export interface Strings {
   loginButton: string;
   loginWaitingButton: string;
 
+  /** Shown in place of the sign-in prompt when there is no CLI to sign in with. */
+  claudeMissing: string;
+  installButton: string;
+  loginFailed: (message: string) => string;
+
   show: string;
   section: (key: SectionKey) => string;
   refreshEvery: string;
@@ -119,6 +124,9 @@ const en: Strings = {
   loginWaitingNote: "Complete the sign-in in the console window.",
   loginButton: "Login Required",
   loginWaitingButton: "Waiting for sign-in…",
+  claudeMissing: "Claude Code is not installed on this machine.",
+  installButton: "How to Install",
+  loginFailed: (message) => `Could not start the sign-in: ${message}`,
 
   show: "Show",
   section: (key) =>
@@ -194,6 +202,9 @@ const ko: Strings = {
   loginWaitingNote: "콘솔 창에서 로그인을 완료하세요.",
   loginButton: "로그인 필요",
   loginWaitingButton: "로그인 대기 중…",
+  claudeMissing: "이 컴퓨터에 Claude Code가 설치되어 있지 않습니다.",
+  installButton: "설치 방법 보기",
+  loginFailed: (message) => `로그인을 시작하지 못했습니다: ${message}`,
 
   show: "표시",
   section: (key) =>

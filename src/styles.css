@@ -392,3 +392,8 @@ body {
   filter: none;
 }
 
+/* Why the sign-in never started. Narrow enough that it has to wrap. */
+.login-error {
+  max-width: 220px;
+}
+
