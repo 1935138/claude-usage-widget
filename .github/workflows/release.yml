@@ -1,0 +1,63 @@
+# Cutting a release from CI rather than a workstation.
+#
+# The release script itself is unchanged and still runs locally; this only
+# gives it a machine to run on. Windows Smart App Control blocks the unsigned
+# test binaries cargo builds, which stops `cargo test` dead on a developer's
+# own machine, and it cannot be switched back on once switched off. A runner
+# has no such policy and no signing key sitting on disk.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to cut, without the v, e.g. 0.1.7"
+        required: true
+        type: string
+
+# The script commits the version bump, pushes it, and creates the release.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Cut ${{ inputs.version }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The script refuses to run anywhere but main, and wants a real
+          # branch rather than the detached head a bare checkout leaves.
+          ref: main
+          # It pushes a commit, so the clone cannot be a shallow one.
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # `cargo fmt --check` is one of the script's checks; the 32-bit
+          # target is one of the two architectures it builds.
+          components: rustfmt
+          targets: i686-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      # The bump lands as a commit, so it needs an author.
+      - name: Name the committer
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Cut the release
+        run: npm run release -- ${{ inputs.version }} --publish
+        env:
+          # The key's contents, not a path: there is no file on a runner.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # What `gh release create` authenticates with.
+          GH_TOKEN: ${{ github.token }}

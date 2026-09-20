@@ -77,6 +77,25 @@ installers, a `SHA256SUMS` and `latest.json` under `target/release-<version>/`.
 A run without `--publish` leaves the version bumped and nothing uploaded, so you
 can look at what it made. `git checkout .` undoes the bump.
 
+### Cutting it from CI instead
+
+The same script runs on a runner, from the **Release** workflow under Actions:
+give it a version and it does everything the local run does. That is the way to
+release from a machine with Smart App Control switched on, which blocks the
+unsigned test binaries `cargo test` builds and cannot be switched back on once
+switched off. It also keeps the signing key off workstations entirely.
+
+Two repository secrets stand in for the two environment variables:
+
+```
+TAURI_SIGNING_PRIVATE_KEY            the key file's contents, not a path
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD   the password it was generated with
+```
+
+The workflow pushes the version bump to `main`, so a branch protection rule
+that forbids direct pushes will stop it at the last step, after the installers
+have been built and before anything is published.
+
 ### The signing key
 
 Releases are signed. An unsigned one cannot be installed as an update by anyone
