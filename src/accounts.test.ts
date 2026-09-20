@@ -7,6 +7,7 @@ const limits = (over: Partial<Limits> = {}): Limits => ({
   meters: [],
   fetchedAt: new Date().toISOString(),
   source: "Windows",
+  configDir: "",
   account: "c8abb3bc",
   email: "you@example.com",
   organization: null,
@@ -28,6 +29,7 @@ const settings = (account: string | null): Settings => ({
   timeFormat: "24",
   language: "system",
   cornerRadius: 12,
+  extraAccounts: [],
 });
 
 describe("identity", () => {

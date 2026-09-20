@@ -27,6 +27,11 @@ export interface Limits {
   meters: Meter[];
   fetchedAt: string;
   source: string;
+  /**
+   * The config directory these figures came from, or empty for a root the
+   * widget did not name. Only the named ones can be removed again.
+   */
+  configDir: string;
   account: string;
   email: string | null;
   organization: string | null;
@@ -48,6 +53,8 @@ export interface Settings {
   timeFormat: string;
   language: string;
   cornerRadius: number;
+  /** Config directories the widget signed in itself, one account each. */
+  extraAccounts: string[];
 }
 
 /** Mirrors `commands::ClaudeState`: what the backend found on this machine. */

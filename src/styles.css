@@ -397,3 +397,36 @@ body {
   max-width: 220px;
 }
 
+
+/* An account row names the account and where it came from, stacked so a long
+   email does not push the remove button off the card. */
+.account-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.account-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-from {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The add button sits in a row whose label is empty, so it takes the width it
+   would otherwise share. */
+.account-row + .opt-row > span:empty {
+  display: none;
+}
+.opt-btn:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+.opt-btn:disabled:hover {
+  background: var(--surface-1);
+}

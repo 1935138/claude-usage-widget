@@ -53,9 +53,24 @@ pub struct DataRoot {
 /// Roots are de-duplicated by canonical path, so an override that happens to
 /// name the native directory is not counted twice.
 pub fn discover() -> Vec<DataRoot> {
+    discover_with(&[])
+}
+
+/// As [`discover`], plus config directories the caller knows about.
+///
+/// The widget keeps its own list of these, because `CLAUDE_CONFIG_DIR` cannot
+/// carry one: the CLI reads the whole value as a single path, so setting it to
+/// several would give this widget its accounts and take the CLI's away.
+///
+/// They go first, like the environment override, so a directory named twice is
+/// counted once and labelled by the caller's spelling of it.
+pub fn discover_with(extra: &[PathBuf]) -> Vec<DataRoot> {
     let mut roots = Vec::new();
     let mut seen = BTreeSet::new();
 
+    for root in extra.iter().filter_map(|dir| config_root(dir)) {
+        push_unique(&mut roots, &mut seen, root);
+    }
     for root in explicit_roots() {
         push_unique(&mut roots, &mut seen, root);
     }
@@ -66,6 +81,18 @@ pub fn discover() -> Vec<DataRoot> {
         push_unique(&mut roots, &mut seen, root);
     }
     roots
+}
+
+/// One root for a directory named outright, or nothing if it holds no
+/// `projects` tree yet. A config directory the CLI has never written a session
+/// into has none, which is why anything adding one creates it.
+fn config_root(dir: &Path) -> Option<DataRoot> {
+    let projects = dir.join("projects");
+    projects.is_dir().then(|| DataRoot {
+        label: format!("Config: {}", dir.display()),
+        projects_dir: projects,
+        origin: Origin::Explicit,
+    })
 }
 
 fn push_unique(roots: &mut Vec<DataRoot>, seen: &mut BTreeSet<PathBuf>, root: DataRoot) {
@@ -80,9 +107,15 @@ fn push_unique(roots: &mut Vec<DataRoot>, seen: &mut BTreeSet<PathBuf>, root: Da
     }
 }
 
-/// `CLAUDE_CONFIG_DIR` may hold several directories. Comma is what Claude Code
-/// documents; semicolon is accepted too since it is the native Windows list
-/// separator and a bare `:` cannot be used (drive letters).
+/// `CLAUDE_CONFIG_DIR` as this widget reads it: one directory, or several
+/// separated by a comma or a semicolon.
+///
+/// The CLI itself takes the whole value as a single path and does not split it,
+/// so a list here is this widget's convention alone. Setting one for the
+/// widget's benefit would leave the CLI looking for a directory named after
+/// both, which reads as being signed out. Semicolon is accepted alongside comma
+/// because it is the native Windows list separator, and a bare `:` cannot be
+/// one (drive letters).
 fn explicit_roots() -> Vec<DataRoot> {
     let Ok(raw) = std::env::var("CLAUDE_CONFIG_DIR") else {
         return Vec::new();
@@ -90,14 +123,7 @@ fn explicit_roots() -> Vec<DataRoot> {
     raw.split([',', ';'])
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .filter_map(|dir| {
-            let projects = Path::new(dir).join("projects");
-            projects.is_dir().then(|| DataRoot {
-                label: format!("Config: {dir}"),
-                projects_dir: projects,
-                origin: Origin::Explicit,
-            })
-        })
+        .filter_map(|dir| config_root(Path::new(dir)))
         .collect()
 }
 
@@ -321,5 +347,41 @@ mod tests {
         std::env::set_var("CLAUDE_CONFIG_DIR", "/nonexistent-claude-dir-xyz");
         assert!(explicit_roots().is_empty());
         std::env::remove_var("CLAUDE_CONFIG_DIR");
+    }
+
+    #[test]
+    fn a_named_config_directory_becomes_a_root() {
+        let dir = std::env::temp_dir().join("cuw-discovery-named");
+        std::fs::create_dir_all(dir.join("projects")).unwrap();
+        let roots = discover_with(std::slice::from_ref(&dir));
+        let named = roots
+            .iter()
+            .find(|r| r.projects_dir == dir.join("projects"))
+            .expect("the named directory should be a root");
+        assert_eq!(named.origin, Origin::Explicit);
+    }
+
+    #[test]
+    fn a_named_directory_without_a_projects_tree_is_skipped() {
+        // A config directory the CLI has only ever signed into has no
+        // `projects`, which is exactly the case that must not look like a
+        // working account.
+        let dir = std::env::temp_dir().join("cuw-discovery-bare");
+        std::fs::create_dir_all(&dir).unwrap();
+        let _ = std::fs::remove_dir_all(dir.join("projects"));
+        let roots = discover_with(std::slice::from_ref(&dir));
+        assert!(!roots.iter().any(|r| r.projects_dir.starts_with(&dir)));
+    }
+
+    #[test]
+    fn naming_the_same_directory_twice_yields_one_root() {
+        let dir = std::env::temp_dir().join("cuw-discovery-twice");
+        std::fs::create_dir_all(dir.join("projects")).unwrap();
+        let roots = discover_with(&[dir.clone(), dir.clone()]);
+        let hits = roots
+            .iter()
+            .filter(|r| r.projects_dir == dir.join("projects"))
+            .count();
+        assert_eq!(hits, 1);
     }
 }

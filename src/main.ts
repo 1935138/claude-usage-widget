@@ -11,7 +11,7 @@ import { resolveLang, strings, type Strings } from "./i18n";
 import type { ClaudeState, Limits, LoginState, SectionKey, Settings } from "./types";
 import { checkForUpdate, installUpdate, type UpdateStatus } from "./updates";
 import { render } from "./view/card";
-import { renderSettings } from "./view/settings";
+import { type AddingAccount, renderSettings } from "./view/settings";
 
 /** The card's 1px top and bottom border, which the content measurement misses. */
 const CARD_BORDERS = 2;
@@ -143,6 +143,7 @@ let settings: Settings = {
   timeFormat: "24",
   language: "system",
   cornerRadius: 12,
+  extraAccounts: [],
 };
 /** The words the card is written in, settled once the settings have loaded. */
 let t: Strings = strings(resolveLang("system"));
@@ -161,6 +162,8 @@ let accounts: Limits[] = [];
 let login: LoginState = "ok";
 /** Why the last sign-in attempt never started, if it did not. */
 let loginError: string | null = null;
+/** The sign-in for an extra account the settings panel started, if any. */
+let adding: AddingAccount | null = null;
 /**
  * The last live answer per account.
  *
@@ -178,7 +181,7 @@ async function draw(): Promise<void> {
   contentEl.innerHTML = loading
     ? ""
     : showingSettings
-      ? renderSettings(settings, t, update)
+      ? renderSettings(settings, accounts, adding, t, update)
       : render(accounts, settings, login, loginError, t);
   applyFooter();
   await fitWindow();
@@ -263,6 +266,63 @@ async function startLogin(): Promise<void> {
   }, LOGIN_POLL_MS);
 }
 
+
+/**
+ * Signs in one more account, in a config directory of its own.
+ *
+ * The directory is recorded only once credentials appear in it, so a console
+ * closed halfway leaves nothing behind that could never work. What is left on
+ * disk is swept the next time the widget starts.
+ */
+async function startAddAccount(): Promise<void> {
+  let dir: string;
+  try {
+    dir = await invoke<string>("add_account");
+  } catch (err) {
+    adding = { dir: "", error: String(err) };
+    await draw();
+    return;
+  }
+  adding = { dir, error: null };
+  await draw();
+
+  let left = LOGIN_POLL_LIMIT;
+  const poll = setInterval(() => {
+    if (adding === null || adding.dir !== dir) {
+      clearInterval(poll);
+      return;
+    }
+    if (left-- <= 0) {
+      clearInterval(poll);
+      adding = { dir, error: t.addAccountNote };
+      void draw();
+      return;
+    }
+    void (async () => {
+      if (!(await invoke<boolean>("account_signed_in", { dir }))) return;
+      clearInterval(poll);
+      try {
+        await invoke("confirm_account", { dir });
+        settings = await invoke<Settings>("load_settings");
+        adding = null;
+      } catch (err) {
+        adding = { dir, error: String(err) };
+      }
+      await load();
+    })();
+  }, LOGIN_POLL_MS);
+}
+
+async function removeAccount(dir: string): Promise<void> {
+  try {
+    await invoke("remove_account", { dir });
+    settings = await invoke<Settings>("load_settings");
+  } catch {
+    return;
+  }
+  await load();
+}
+
 contentEl.addEventListener("change", (event) => {
   const target = event.target;
   if (target instanceof HTMLSelectElement && target.id === "account") {
@@ -340,6 +400,15 @@ contentEl.addEventListener("click", (event) => {
   }
   if (event.target.id === "install-claude") {
     void invoke("open_install_docs").catch(() => undefined);
+    return;
+  }
+  if (event.target.id === "add-account") {
+    void startAddAccount();
+    return;
+  }
+  if (event.target.classList.contains("remove-account")) {
+    const dir = event.target.dataset.dir;
+    if (dir) void removeAccount(dir);
     return;
   }
   if (event.target.id === "check-update") {

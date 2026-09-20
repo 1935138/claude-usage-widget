@@ -34,9 +34,10 @@ weekly limit, and any per-model weekly limit, each with the time it resets.
 - **Windows and WSL.** Finds every Claude Code install on the machine, including
   ones inside WSL distributions.
 - **Multiple accounts.** Quota is per account. Installs signed in as different
-  accounts are offered in a dropdown.
+  accounts are offered in a dropdown, and the settings panel signs in further
+  accounts of your own without needing a second install.
 - **Signed out? One click.** With no credentials on the machine, the card offers
-  a button that runs `claude login` for you.
+  a button that runs `claude auth login` for you.
 - **Stays out of the way.** Always on top, no taskbar entry, sizes itself to its
   content, and follows the Windows light/dark theme.
 
@@ -104,6 +105,21 @@ Nothing leaves the machine except the one request that fetches the figures.
 Errors carry no detail from the credentials file, so no token material can reach
 a log or the UI. Signing in is delegated to `claude login` in its own console
 for the same reason.
+
+### Accounts you add here
+
+"Add an account" in the settings panel runs `claude auth login` against a config
+directory of the widget's own, under its data folder, so a second account can be
+watched without disturbing the install you work with. Claude Code writes the
+credentials there itself; the widget still writes no token anywhere, but the
+directory it chose is where one ends up. "Remove" forgets the account and
+deletes that directory.
+
+This cannot be done through `CLAUDE_CONFIG_DIR`: the CLI reads the whole of that
+variable as a single path, so a value naming two directories would leave every
+`claude` invocation looking for a directory named after both. The list lives in
+the widget's own `settings.json` instead, and each sign-in is the only process
+that sees the variable.
 
 ## Contributing
 

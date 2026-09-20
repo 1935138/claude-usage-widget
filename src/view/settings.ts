@@ -1,16 +1,18 @@
 // The panel behind the sliders icon.
 
+import { accountName } from "../accounts";
 import {
   CLOCK_VALUES,
   CORNER_RADII,
   LANGUAGE_VALUES,
+  MAX_EXTRA_ACCOUNTS,
   REFRESH_SECONDS,
   SECTION_KEYS,
   TIME_FORMAT_VALUES,
 } from "../choices";
 import { esc } from "../format";
 import type { Strings } from "../i18n";
-import type { Settings } from "../types";
+import type { Limits, Settings } from "../types";
 import type { UpdateStatus } from "../updates";
 
 /** One `<option>` per value, with the catalogue supplying the words. */
@@ -61,7 +63,79 @@ function updateControl(status: UpdateStatus, t: Strings): string {
   }
 }
 
-export function renderSettings(s: Settings, t: Strings, update: UpdateStatus): string {
+
+/** Whether a sign-in the panel started is still running, and where. */
+export interface AddingAccount {
+  dir: string;
+  error: string | null;
+}
+
+/**
+ * The accounts the card can show, and the button that signs in another.
+ *
+ * Every account is listed, not only the ones the widget added, because the
+ * ones it did not add are exactly what makes the list confusing otherwise: an
+ * install found under WSL has no remove button, and saying where it came from
+ * is what explains why.
+ */
+function accountsSection(
+  all: Limits[],
+  s: Settings,
+  adding: AddingAccount | null,
+  t: Strings,
+): string {
+  const rows = all
+    .map((one) => {
+      const removable = one.configDir !== "" && s.extraAccounts.includes(one.configDir);
+      const button = removable
+        ? `<button class="opt-btn remove-account" type="button" data-dir="${esc(one.configDir)}">${esc(
+            t.removeAccount,
+          )}</button>`
+        : "";
+      // A directory the widget made is named by a path nobody chose to read;
+      // where it came from is the useful part, and the path stays on hover.
+      const from = removable ? t.accountAdded : t.accountSource(one.source);
+      return `<div class="opt-row account-row">
+        <span class="account-line">
+          <span class="account-id">${esc(accountName(one))}</span>
+          <span class="account-from" title="${esc(one.configDir || one.source)}">${esc(from)}</span>
+        </span>
+        ${button}
+      </div>`;
+    })
+    .join("");
+
+  const full = s.extraAccounts.length >= MAX_EXTRA_ACCOUNTS;
+  const waiting = adding !== null && adding.error === null;
+  const control = waiting
+    ? `<button id="add-account" class="opt-btn" type="button" disabled>${esc(t.addAccountWaiting)}</button>`
+    : `<button id="add-account" class="opt-btn" type="button"${full ? " disabled" : ""}>${esc(
+        t.addAccount,
+      )}</button>`;
+
+  const note = waiting
+    ? `<p class="note">${esc(t.addAccountNote)}</p>`
+    : adding?.error
+      ? `<p class="note">${esc(t.addAccountFailed(adding.error))}</p>`
+      : full
+        ? `<p class="note">${esc(t.accountsFull)}</p>`
+        : "";
+
+  return `<section class="section" title="${esc(t.accountsTitle)}">
+      <span class="section-title">${esc(t.accounts)}</span>
+      ${rows}
+      ${row("", control)}
+      ${note}
+    </section>`;
+}
+
+export function renderSettings(
+  s: Settings,
+  accounts: Limits[],
+  adding: AddingAccount | null,
+  t: Strings,
+  update: UpdateStatus,
+): string {
   const switches = SECTION_KEYS.map(
     (key) => `<label class="opt">
       <input type="checkbox" data-key="${esc(key)}"${s[key] ? " checked" : ""} />
@@ -75,7 +149,8 @@ export function renderSettings(s: Settings, t: Strings, update: UpdateStatus): s
     ? CORNER_RADII
     : [...CORNER_RADII, s.cornerRadius].sort((a, b) => a - b);
 
-  return `<section class="section">
+  return `${accountsSection(accounts, s, adding, t)}
+    <section class="section">
       <span class="section-title">${esc(t.show)}</span>
       ${switches}
       ${row(

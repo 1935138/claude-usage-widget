@@ -77,6 +77,11 @@ pub struct Limits {
     pub fetched_at: DateTime<Utc>,
     /// Which install the cache came from, e.g. `WSL: <distro>`.
     pub source: String,
+    /// The config directory these figures came from. Empty for a root the
+    /// caller did not name: only a directory the widget signed in itself can
+    /// be un-added, and this is how the settings panel tells which rows those
+    /// are.
+    pub config_dir: String,
     /// Short account id. Installs can be signed in as different accounts, and
     /// the quota shown belongs to exactly one of them.
     pub account: String,
@@ -158,7 +163,13 @@ pub fn load() -> Option<Limits> {
 /// two installs share an account only the fresher cache is kept - see
 /// [`freshest_per_account`] for what counts as the same account.
 pub fn load_all() -> Vec<Limits> {
-    from_roots(&discovery::discover())
+    load_all_with(&[])
+}
+
+/// As [`load_all`], plus the config directories the caller keeps its own list
+/// of - the accounts the widget signed in rather than found.
+pub fn load_all_with(extra: &[std::path::PathBuf]) -> Vec<Limits> {
+    from_roots(&discovery::discover_with(extra))
 }
 
 fn from_roots(roots: &[DataRoot]) -> Vec<Limits> {
@@ -181,6 +192,17 @@ fn from_roots(roots: &[DataRoot]) -> Vec<Limits> {
 /// cannot happen, the reason travels with the cached figures so the UI can say
 /// what is actually wrong.
 fn one_root(root: &DataRoot, now_ms: i64) -> Option<Limits> {
+    // Stamped once here rather than threaded through both constructors: every
+    // path out of the body builds the figures the same way and only this
+    // function knows which root they came from.
+    let mut limits = one_roots_figures(root, now_ms)?;
+    if let Some(dir) = root.projects_dir.parent() {
+        limits.config_dir = dir.display().to_string();
+    }
+    Some(limits)
+}
+
+fn one_roots_figures(root: &DataRoot, now_ms: i64) -> Option<Limits> {
     let file = cache_path(&root.projects_dir).and_then(parse)?;
     let identity = Identity::of(&file);
     let cached = cached_limits(file.cached_usage_utilization, &identity, &root.label);
@@ -245,6 +267,7 @@ fn cached_limits(cached: Option<Cached>, identity: &Identity, source: &str) -> O
         meters: meters_from(cached.utilization)?,
         fetched_at: Utc.timestamp_millis_opt(cached.fetched_at_ms).single()?,
         source: source.to_string(),
+        config_dir: String::new(),
         account: identity.account.clone(),
         email: identity.email.clone(),
         organization: identity.organization.clone(),
@@ -262,6 +285,7 @@ fn live_limits(mut fresh: Utilization, identity: &Identity, source: &str) -> Opt
         meters: meters_from(fresh)?,
         fetched_at: Utc::now(),
         source: source.to_string(),
+        config_dir: String::new(),
         account: identity.account.clone(),
         email: identity.email.clone(),
         organization: identity.organization.clone(),
@@ -373,6 +397,7 @@ mod tests {
             meters: vec![],
             fetched_at: Utc.timestamp_millis_opt(0).single().unwrap(),
             source: "Windows".into(),
+            config_dir: String::new(),
             account: "c8abb3bc".into(),
             email: None,
             organization: None,
@@ -395,6 +420,7 @@ mod tests {
             meters: vec![],
             fetched_at: Utc.timestamp_millis_opt(ms).single().unwrap(),
             source: format!("src{ms}"),
+            config_dir: String::new(),
             account: account.to_string(),
             email: None,
             organization: None,
@@ -418,6 +444,7 @@ mod tests {
             meters: vec![],
             fetched_at: Utc.timestamp_millis_opt(ms).single().unwrap(),
             source: format!("src{ms}"),
+            config_dir: String::new(),
             account: account.to_string(),
             email: email.map(str::to_string),
             organization: None,

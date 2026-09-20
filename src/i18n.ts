@@ -57,6 +57,18 @@ export interface Strings {
   installButton: string;
   loginFailed: (message: string) => string;
 
+  /** The settings-panel section that lists accounts and adds more. */
+  accounts: string;
+  accountsTitle: string;
+  accountSource: (source: string) => string;
+  accountAdded: string;
+  addAccount: string;
+  addAccountWaiting: string;
+  addAccountNote: string;
+  addAccountFailed: (message: string) => string;
+  removeAccount: string;
+  accountsFull: string;
+
   show: string;
   section: (key: SectionKey) => string;
   refreshEvery: string;
@@ -127,6 +139,17 @@ const en: Strings = {
   claudeMissing: "Claude Code is not installed on this machine.",
   installButton: "How to Install",
   loginFailed: (message) => `Could not start the sign-in: ${message}`,
+  accounts: "Accounts",
+  accountsTitle:
+    "Quota is per account. Installs found on this machine are listed too, and cannot be removed here.",
+  accountSource: (source) => `from ${source}`,
+  accountAdded: "added here",
+  addAccount: "Add an account",
+  addAccountWaiting: "Waiting for sign-in…",
+  addAccountNote: "Complete the sign-in in the console window.",
+  addAccountFailed: (message) => `Could not add the account: ${message}`,
+  removeAccount: "Remove",
+  accountsFull: "No room for another account.",
 
   show: "Show",
   section: (key) =>
@@ -205,6 +228,16 @@ const ko: Strings = {
   claudeMissing: "이 컴퓨터에 Claude Code가 설치되어 있지 않습니다.",
   installButton: "설치 방법 보기",
   loginFailed: (message) => `로그인을 시작하지 못했습니다: ${message}`,
+  accounts: "계정",
+  accountsTitle: "사용 한도는 계정별입니다. 이 컴퓨터에서 발견된 설치본도 함께 보이며, 그것은 여기서 지울 수 없습니다.",
+  accountSource: (source) => `출처: ${source}`,
+  accountAdded: "여기서 추가함",
+  addAccount: "계정 추가",
+  addAccountWaiting: "로그인 대기 중…",
+  addAccountNote: "콘솔 창에서 로그인을 완료하세요.",
+  addAccountFailed: (message) => `계정을 추가하지 못했습니다: ${message}`,
+  removeAccount: "제거",
+  accountsFull: "계정을 더 추가할 수 없습니다.",
 
   show: "표시",
   section: (key) =>

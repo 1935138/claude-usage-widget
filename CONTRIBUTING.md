@@ -56,6 +56,14 @@ npm test                                             # the pure frontend functio
 npm run build                                        # types, bundle, CSS check
 ```
 
+`probe` reads only what discovery finds by itself, so accounts added through the
+settings panel are invisible to it. Name their directories to see them; the
+widget's own parser splits this list, even though the CLI does not:
+
+```sh
+CLAUDE_CONFIG_DIR="<dir-a>,<dir-b>" cargo run -p claude-usage-core --bin probe
+```
+
 `npm run build` ends by checking that the CSS fully minified. A malformed rule
 makes esbuild pass the rest of the file through verbatim, dropping every rule
 after it while the build still reports success.

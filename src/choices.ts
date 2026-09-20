@@ -37,3 +37,11 @@ export const SECTION_KEYS: ReadonlyArray<SectionKey> = [
   "pace",
   "provenance",
 ];
+
+/**
+ * How many accounts the widget will sign in on its own behalf.
+ *
+ * Mirrors `claude_usage_core::settings::MAX_EXTRA_ACCOUNTS`; the backend
+ * enforces it, and the panel greys the button out before anyone reaches it.
+ */
+export const MAX_EXTRA_ACCOUNTS = 8;

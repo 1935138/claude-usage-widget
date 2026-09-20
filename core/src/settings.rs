@@ -4,6 +4,7 @@
 //! forward-compatibility can be tested without a desktop toolchain.
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// Refresh intervals outside this range are clamped. The floor keeps a
 /// hand-edited settings file from hammering the usage endpoint, which rate
@@ -46,6 +47,13 @@ pub const MAX_CORNER_RADIUS: u32 = 24;
 /// Matches the radius the card was designed around.
 pub const DEFAULT_CORNER_RADIUS: u32 = 12;
 
+/// How many accounts the widget will sign in on its own behalf.
+///
+/// Every one of them is another request each refresh. Quota is per account,
+/// so they do not eat into each other, but a hand-edited file naming a
+/// hundred directories would still make a nuisance of itself.
+pub const MAX_EXTRA_ACCOUNTS: usize = 8;
+
 /// Which parts of the widget are shown.
 ///
 /// `#[serde(default)]` on the container fills any missing field from [`Default`]
@@ -78,6 +86,11 @@ pub struct Settings {
     /// window itself is undecorated and transparent, so this is the whole of
     /// the widget's outline - Windows draws no frame to round.
     pub corner_radius: u32,
+    /// Config directories the widget signed in itself, each holding one more
+    /// account to read. Only these are the widget's to add and remove: the
+    /// install it is running beside, and any under WSL, are found by looking
+    /// rather than by being listed, so removing one here would not stick.
+    pub extra_accounts: Vec<PathBuf>,
 }
 
 impl Settings {
@@ -109,6 +122,15 @@ impl Settings {
             self.language = DEFAULT_LANGUAGE.to_string();
         }
         self.corner_radius = self.corner_radius.min(MAX_CORNER_RADIUS);
+
+        // Dropped rather than kept: an empty string names no directory, and a
+        // repeat would fetch the same account twice a refresh. A path that
+        // does not exist is left alone - an unplugged drive should not cost
+        // someone the entry - and simply yields no root when discovery looks.
+        let mut seen = std::collections::BTreeSet::new();
+        self.extra_accounts
+            .retain(|dir| !dir.as_os_str().is_empty() && seen.insert(dir.clone()));
+        self.extra_accounts.truncate(MAX_EXTRA_ACCOUNTS);
         self
     }
 }
@@ -126,6 +148,7 @@ impl Default for Settings {
             time_format: DEFAULT_TIME_FORMAT.to_string(),
             language: DEFAULT_LANGUAGE.to_string(),
             corner_radius: DEFAULT_CORNER_RADIUS,
+            extra_accounts: Vec::new(),
         }
     }
 }
@@ -311,5 +334,61 @@ mod tests {
         let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert!(!back.weekly);
         assert!(back.session && back.provenance);
+    }
+
+    #[test]
+    fn an_older_file_has_no_extra_accounts_rather_than_failing_to_parse() {
+        let s: Settings = serde_json::from_str(r#"{"session":true}"#).unwrap();
+        assert!(s.extra_accounts.is_empty());
+    }
+
+    #[test]
+    fn a_repeated_account_directory_is_kept_once() {
+        // Each one is a request per refresh, and the second would be for the
+        // account the first already answered for.
+        let s = Settings {
+            extra_accounts: vec!["a".into(), "b".into(), "a".into()],
+            ..Default::default()
+        }
+        .normalized();
+        assert_eq!(
+            s.extra_accounts,
+            vec![PathBuf::from("a"), PathBuf::from("b")]
+        );
+    }
+
+    #[test]
+    fn an_empty_account_directory_is_dropped() {
+        let s = Settings {
+            extra_accounts: vec!["".into(), "a".into()],
+            ..Default::default()
+        }
+        .normalized();
+        assert_eq!(s.extra_accounts, vec![PathBuf::from("a")]);
+    }
+
+    #[test]
+    fn a_missing_account_directory_is_kept() {
+        // An unplugged drive must not cost someone the entry; discovery simply
+        // finds no root for it until it is back.
+        let s = Settings {
+            extra_accounts: vec!["Z:/gone".into()],
+            ..Default::default()
+        }
+        .normalized();
+        assert_eq!(s.extra_accounts, vec![PathBuf::from("Z:/gone")]);
+    }
+
+    #[test]
+    fn a_hand_edited_file_cannot_name_more_than_the_ceiling() {
+        let many: Vec<PathBuf> = (0..MAX_EXTRA_ACCOUNTS + 5)
+            .map(|n| PathBuf::from(format!("dir{n}")))
+            .collect();
+        let s = Settings {
+            extra_accounts: many,
+            ..Default::default()
+        }
+        .normalized();
+        assert_eq!(s.extra_accounts.len(), MAX_EXTRA_ACCOUNTS);
     }
 }

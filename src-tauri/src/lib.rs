@@ -67,6 +67,10 @@ pub fn run() {
                 }
                 show_eventually(window);
             }
+            // A console closed without finishing leaves a directory behind that
+            // can never show anything. Cleared at startup rather than on the
+            // spot, since the console outlives the click.
+            commands::sweep_abandoned(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -74,6 +78,10 @@ pub fn run() {
             commands::login_state,
             commands::login,
             commands::open_install_docs,
+            commands::add_account,
+            commands::account_signed_in,
+            commands::confirm_account,
+            commands::remove_account,
             commands::fit_to_content,
             commands::load_settings,
             commands::save_settings

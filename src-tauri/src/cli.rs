@@ -73,14 +73,43 @@ fn known_dirs() -> Vec<PathBuf> {
 ///
 /// `auth login` rather than `login`: the latter is not a subcommand, so the
 /// CLI would take it for a prompt and open an ordinary chat session.
-pub fn spawn_login(exe: &Path) -> std::io::Result<()> {
+///
+/// `config_dir` signs a further account in beside the one already there. It is
+/// set on this child alone: the CLI reads the whole of `CLAUDE_CONFIG_DIR` as
+/// one path, so a value meant to name several directories would leave every
+/// other invocation looking for a directory named after all of them, which
+/// reads as being signed out.
+pub fn spawn_login(exe: &Path, config_dir: Option<&Path>) -> std::io::Result<()> {
     let mut command = launcher(exe, "auth login");
+    if let Some(dir) = config_dir {
+        prepare_config_dir(dir)?;
+        command.env("CLAUDE_CONFIG_DIR", dir);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         command.creation_flags(CREATE_NEW_CONSOLE);
     }
     command.spawn().map(|_| ())
+}
+
+/// Makes a config directory the widget will be able to read an account from.
+///
+/// Signing in writes `.claude.json` and the credentials, but never `projects`:
+/// the CLI creates that the first time it records a session. Discovery will not
+/// take a directory without one, so a sign-in that went perfectly would show
+/// nothing at all. An empty one is enough.
+pub fn prepare_config_dir(dir: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir.join("projects"))
+}
+
+/// Whether an account has finished signing in here.
+///
+/// The console runs on its own and tells the widget nothing, so this is what
+/// gets polled. The credentials file is the thing that actually decides
+/// whether a live read is possible, which makes it the honest signal.
+pub fn signed_in(dir: &Path) -> bool {
+    dir.join(".credentials.json").is_file()
 }
 
 /// A command that runs `exe args`, through a shell only where one is needed.
