@@ -94,12 +94,21 @@ release from a machine with Smart App Control switched on, which blocks the
 unsigned test binaries `cargo test` builds and cannot be switched back on once
 switched off. It also keeps the signing key off workstations entirely.
 
-Two repository secrets stand in for the two environment variables:
+Three repository secrets. The first two stand in for the two environment
+variables the signing needs:
 
 ```
 TAURI_SIGNING_PRIVATE_KEY            the key file's contents, not a path
 TAURI_SIGNING_PRIVATE_KEY_PASSWORD   the password it was generated with
+RELEASE_TOKEN                        a personal access token, Contents: rw
 ```
+
+`RELEASE_TOKEN` is what decides whose name ends up on the release. GitHub takes
+the pusher and the release's publisher from the token rather than from
+`git config`, so with the automatic `github.token` both of them read
+`github-actions[bot]`, and the bot appears in the repository's contributor list
+however carefully the commit author was set. A personal access token keeps the
+author, the pusher and the publisher the same person.
 
 The workflow pushes the version bump to `main`, so a branch protection rule
 that forbids direct pushes will stop it at the last step, after the installers

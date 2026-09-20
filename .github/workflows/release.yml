@@ -32,6 +32,10 @@ jobs:
           ref: main
           # It pushes a commit, so the clone cannot be a shallow one.
           fetch-depth: 0
+          # The credentials this leaves behind are what the script's `git push`
+          # uses, so they decide who GitHub records as having pushed. See the
+          # note on RELEASE_TOKEN below.
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -51,6 +55,14 @@ jobs:
       # whoever dispatched the workflow rather than to a bot: a bot author
       # shows up in the repository's contributor list, and nobody who reads
       # that list is looking for one.
+      #
+      # Naming the author is not enough on its own. GitHub also records who
+      # pushed and who published the release, and both are taken from the
+      # token, not from `git config`. With the automatic `github.token` those
+      # two are `github-actions[bot]`, and the bot lands in the contributor
+      # list by that route instead. RELEASE_TOKEN is a personal access token
+      # with Contents: read and write, which keeps every one of the three the
+      # same person.
       - name: Name the committer
         run: |
           git config user.name "${{ github.actor }}"
@@ -62,5 +74,6 @@ jobs:
           # The key's contents, not a path: there is no file on a runner.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # What `gh release create` authenticates with.
-          GH_TOKEN: ${{ github.token }}
+          # What `gh release create` authenticates with, and so who the
+          # release is published by.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
