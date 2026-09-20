@@ -47,11 +47,14 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # The bump lands as a commit, so it needs an author.
+      # The bump lands as a commit, so it needs an author. It is credited to
+      # whoever dispatched the workflow rather than to a bot: a bot author
+      # shows up in the repository's contributor list, and nobody who reads
+      # that list is looking for one.
       - name: Name the committer
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
 
       - name: Cut the release
         run: npm run release -- ${{ inputs.version }} --publish
