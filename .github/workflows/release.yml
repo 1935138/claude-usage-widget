@@ -25,7 +25,7 @@ jobs:
     name: Cut ${{ inputs.version }}
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # The script refuses to run anywhere but main, and wants a real
           # branch rather than the detached head a bare checkout leaves.
@@ -41,7 +41,7 @@ jobs:
           targets: i686-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
