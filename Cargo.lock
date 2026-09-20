@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "claude-usage-widget"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "claude-usage-core",
  "serde",
