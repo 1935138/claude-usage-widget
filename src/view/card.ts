@@ -84,8 +84,21 @@ export function accountPicker(all: Limits[], current: Limits, t: Strings): strin
     </div>`;
 }
 
-/** Centred prompt shown when this machine has never run `claude login`. */
-export function loginRequired(state: LoginState, t: Strings): string {
+/**
+ * Centred prompt shown in place of the meters when this machine cannot report
+ * anything yet: no Claude Code on it, or one that has never signed in.
+ *
+ * A failed start is shown rather than swallowed. The console the button opens
+ * is the only sign it did anything, so when none appears the reason has to
+ * land somewhere the user is already looking.
+ */
+export function loginRequired(state: LoginState, error: string | null, t: Strings): string {
+  if (state === "notInstalled") {
+    return `<div class="login-panel">
+      <p class="note">${esc(t.claudeMissing)}</p>
+      <button id="install-claude" class="login-btn" type="button">${esc(t.installButton)}</button>
+    </div>`;
+  }
   const waiting = state === "waiting";
   const note = waiting ? t.loginWaitingNote : t.loginMissing;
   return `<div class="login-panel">
@@ -93,14 +106,21 @@ export function loginRequired(state: LoginState, t: Strings): string {
       <button id="login" class="login-btn" type="button"${waiting ? " disabled" : ""}>${esc(
         waiting ? t.loginWaitingButton : t.loginButton,
       )}</button>
+      ${error ? `<p class="note login-error">${esc(t.loginFailed(error))}</p>` : ""}
     </div>`;
 }
 
-export function render(all: Limits[], s: Settings, login: LoginState, t: Strings): string {
+export function render(
+  all: Limits[],
+  s: Settings,
+  login: LoginState,
+  loginError: string | null,
+  t: Strings,
+): string {
   if (all.length === 0) {
     return login === "ok"
       ? `<p class="note">${esc(t.noCache)}</p>`
-      : loginRequired(login, t);
+      : loginRequired(login, loginError, t);
   }
   const limits = chosen(all, s)!;
   const meters = limits.meters.filter((m) => wanted(m, s));

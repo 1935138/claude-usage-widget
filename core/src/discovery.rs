@@ -129,7 +129,11 @@ fn native_label() -> String {
     }
 }
 
-fn home_dir() -> Option<PathBuf> {
+/// The home directory of the OS the widget is running on.
+///
+/// Public because the CLI itself is installed under it, and finding that is
+/// the same question asked of the same two variables.
+pub fn home_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     let keys = ["USERPROFILE", "HOME"];
     #[cfg(not(windows))]

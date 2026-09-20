@@ -1,5 +1,6 @@
 //! Tauri backend for the Claude Code usage widget.
 
+mod cli;
 mod commands;
 mod layout;
 mod settings;
@@ -70,8 +71,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::plan_limits,
-            commands::needs_login,
+            commands::login_state,
             commands::login,
+            commands::open_install_docs,
             commands::fit_to_content,
             commands::load_settings,
             commands::save_settings

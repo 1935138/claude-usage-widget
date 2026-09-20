@@ -8,7 +8,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { chosen, identity } from "./accounts";
 import { clockTime, esc, provenance } from "./format";
 import { resolveLang, strings, type Strings } from "./i18n";
-import type { Limits, LoginState, SectionKey, Settings } from "./types";
+import type { ClaudeState, Limits, LoginState, SectionKey, Settings } from "./types";
 import { checkForUpdate, installUpdate, type UpdateStatus } from "./updates";
 import { render } from "./view/card";
 import { renderSettings } from "./view/settings";
@@ -159,6 +159,8 @@ let update: UpdateStatus = { kind: "unknown" };
 let version = "";
 let accounts: Limits[] = [];
 let login: LoginState = "ok";
+/** Why the last sign-in attempt never started, if it did not. */
+let loginError: string | null = null;
 /**
  * The last live answer per account.
  *
@@ -177,7 +179,7 @@ async function draw(): Promise<void> {
     ? ""
     : showingSettings
       ? renderSettings(settings, t, update)
-      : render(accounts, settings, login, t);
+      : render(accounts, settings, login, loginError, t);
   applyFooter();
   await fitWindow();
 }
@@ -207,8 +209,8 @@ async function load(): Promise<void> {
     // Only worth asking when there is nothing else to show. A sign-in already
     // under way keeps its state until it lands, so the prompt does not flip
     // back while the console window is still open.
-    const missing = accounts.length === 0 && (await invoke<boolean>("needs_login"));
-    login = missing ? (login === "waiting" ? "waiting" : "needed") : "ok";
+    const state: ClaudeState = accounts.length === 0 ? await invoke("login_state") : "ok";
+    login = state === "needed" && login === "waiting" ? "waiting" : state;
   } catch (err) {
     loading = false;
     cardEl.classList.remove("loading");
@@ -232,9 +234,15 @@ const LOGIN_POLL_LIMIT = 60;
  * refresh, which can be five minutes away.
  */
 async function startLogin(): Promise<void> {
+  loginError = null;
   try {
     await invoke("login");
-  } catch {
+  } catch (err) {
+    // Nothing was started, so no console will open and nothing will arrive to
+    // poll for. Say why on the card rather than leaving the button looking
+    // inert, which is how a missing CLI used to present itself.
+    loginError = String(err);
+    await draw();
     return;
   }
   login = "waiting";
@@ -328,6 +336,10 @@ contentEl.addEventListener("click", (event) => {
   if (!(event.target instanceof HTMLElement)) return;
   if (event.target.id === "login") {
     void startLogin();
+    return;
+  }
+  if (event.target.id === "install-claude") {
+    void invoke("open_install_docs").catch(() => undefined);
     return;
   }
   if (event.target.id === "check-update") {

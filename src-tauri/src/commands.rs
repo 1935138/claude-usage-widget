@@ -4,7 +4,7 @@
 //! or the network goes to a blocking thread: one of the files can sit across
 //! the WSL boundary, where a read is a network round trip.
 
-use crate::{layout, settings};
+use crate::{cli, layout, settings};
 use claude_usage_core::{discovery, limits, live};
 
 /// Plan-limit meters for every account a cache was found for, freshest first.
@@ -18,40 +18,63 @@ pub async fn plan_limits() -> Vec<limits::Limits> {
         .unwrap_or_default()
 }
 
-/// Whether this machine's own Claude Code install has never signed in.
+/// What this machine can offer, as far as showing figures goes.
 ///
-/// Only the install the widget itself is running on is checked - a WSL
-/// install with no credentials is not this widget's to log into, and quota is
-/// per account, so leaving one signed out there is a deliberate choice, not
+/// Three answers rather than two: a machine with no Claude Code on it needs
+/// installing, not signing in, and telling someone to sign in when there is
+/// nothing to sign in with is the complaint this exists to answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClaudeState {
+    /// Signed in here already.
+    Ok,
+    /// Claude Code is installed but has never signed in.
+    Needed,
+    /// No Claude Code on this machine at all.
+    NotInstalled,
+}
+
+/// Whether this machine's own Claude Code install is signed in, and failing
+/// that whether it is installed.
+///
+/// Only the install the widget itself is running on is checked - a WSL install
+/// with no credentials is not this widget's to log into, and quota is per
+/// account, so leaving one signed out there is a deliberate choice, not
 /// something to nag about here.
 #[tauri::command]
-pub async fn needs_login() -> bool {
+pub async fn login_state() -> ClaudeState {
     tauri::async_runtime::spawn_blocking(|| {
-        let here = discovery::discover()
+        let signed_in = discovery::discover()
             .into_iter()
-            .find(|root| root.origin != discovery::Origin::Wsl);
-        match here {
-            Some(root) => live::credentials_path(&root.projects_dir).is_none(),
-            None => true,
+            .find(|root| root.origin != discovery::Origin::Wsl)
+            .is_some_and(|root| live::credentials_path(&root.projects_dir).is_some());
+        if signed_in {
+            ClaudeState::Ok
+        } else if cli::locate().is_some() {
+            ClaudeState::Needed
+        } else {
+            ClaudeState::NotInstalled
         }
     })
     .await
-    .unwrap_or(false)
+    .unwrap_or(ClaudeState::Ok)
 }
 
-/// Opens `claude login` in its own console window.
+/// Opens `claude auth login` in its own console window.
 ///
-/// Run through `cmd` rather than invoked directly: a Node-installed CLI
-/// resolves to a `.cmd` shim, which Windows will not execute as the target of
-/// `CreateProcess` on its own. Left attached to a new console rather than
-/// hidden, since the login flow may print a URL to open by hand.
+/// The CLI is located first: it is routinely absent from the widget's `PATH`,
+/// and a shell asked for it by bare name closes its console on the error
+/// before anyone can read it.
 #[tauri::command]
 pub fn login() -> Result<(), String> {
-    std::process::Command::new("cmd")
-        .args(["/C", "claude", "login"])
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    let exe = cli::locate().ok_or("no Claude Code on this machine")?;
+    cli::spawn_login(&exe).map_err(|e| e.to_string())
+}
+
+/// Opens the install instructions in the default browser.
+#[tauri::command]
+pub fn open_install_docs() -> Result<(), String> {
+    cli::open_install_docs().map_err(|e| e.to_string())
 }
 
 /// What the widget should show.
