@@ -2,7 +2,8 @@
 
 Issues and pull requests are welcome. This page is what you need to build the
 widget and check your work; [docs/architecture.md](docs/architecture.md)
-explains how the code is laid out and why.
+explains how the code is laid out and why. [Sending a change](#sending-a-change)
+says when a change wants a pull request and when it does not.
 
 ## Building it
 
@@ -141,4 +142,9 @@ release is not visible to installed widgets the instant it is published.
 - Keep commits to one change each, with a message that says why rather than
   what. The history is the only place the reasoning survives.
 - `cargo fmt` and clippy are enforced by CI, so run them before pushing.
-- A change to what the card shows wants a screenshot in the pull request.
+- Push to `main`. CI runs on every push there, so a branch and a pull request
+  buy nothing when you are the only one working on it, and cost a round trip.
+- Open a pull request when the change wants a second look before it lands:
+  something you are unsure of, something large enough that the diff is the
+  argument for it, or a change to what the card shows, where a screenshot in
+  the description is worth more than the same screenshot in a commit message.
